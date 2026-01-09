@@ -105,6 +105,17 @@
   }
   .host-selecting-pop.hidden{display:none;}
 
+  /* ★チップ移動不可ポップ（下固定） */
+  .coin-warning-pop{
+    position:fixed;left:50%;bottom:10px;transform:translateX(-50%);
+    background:rgba(20,20,20,.92);color:#fff;
+    padding:12px 16px;border-radius:14px;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+    z-index:230;font-weight:800;white-space:nowrap;
+    pointer-events:none;
+  }
+  .coin-warning-pop.hidden{display:none;}
+
   /* ★ プレイヤー円配置用 */
   .player-circle{
     position:relative;
@@ -177,11 +188,24 @@
     transform:translate(-50%,3px);
     width:66px;height:34px;pointer-events:none;
   }
+  .player-tag .mini-hand-square{
+    position:absolute;
+    left:calc(50% - 40px);
+    top:100%;
+    transform:translate(-50%,10px);
+    width:10px;height:12px;
+    border-radius:2px;
+    background:#111;
+    box-shadow:0 2px 6px rgba(0,0,0,.25);
+    pointer-events:none;
+  }
+  .player-tag .mini-hand-square.hidden{display:none;}
   .player-tag .mini-card{
     position:absolute;left:50%;top:0;width:16px;height:22px;
     border-radius:4px;border:1px solid #bbb;
-    background:linear-gradient(135deg,#e5e7eb,#cbd5f5);
-    font-size:10px;display:flex;align-items:center;justify-content:center;
+    background-image:url('baraura.jpg');
+    background-size:cover;
+    background-position:center;
     transform-origin:bottom center;
     box-shadow:0 2px 6px rgba(0,0,0,.15);
   }
@@ -302,10 +326,9 @@
     width:52px;height:78px;
     border-radius:12px;
     border:1px solid rgba(0,0,0,.22);
-    background:
-      linear-gradient(135deg, rgba(0,0,0,.06), rgba(0,0,0,.14)),
-      repeating-linear-gradient(45deg, rgba(0,0,0,.05) 0 5px, rgba(255,255,255,.05) 5px 10px);
-    box-shadow:0 12px 24px rgba(0,0,0,.22);
+    background-image:url('baraura.jpg');
+    background-size:cover;
+    background-position:center;    box-shadow:0 12px 24px rgba(0,0,0,.22);
     transform:translate(-50%,-50%);
     opacity:.98;
   }
@@ -359,9 +382,9 @@
     width:22px;height:30px;
     border-radius:6px;
     border:1px solid rgba(0,0,0,.25);
-    background:
-      linear-gradient(135deg, rgba(0,0,0,.06), rgba(0,0,0,.14)),
-      repeating-linear-gradient(45deg, rgba(0,0,0,.05) 0 5px, rgba(255,255,255,.05) 5px 10px);
+    background-image:url('baraura.jpg');
+    background-size:cover;
+    background-position:center;
     box-shadow:0 8px 18px rgba(0,0,0,.18);
     pointer-events:none;
   }
@@ -479,13 +502,14 @@
     border-radius:10px;
     background-size:cover;
     background-position:center;
-    opacity:0;
+    opacity:1;
   }
   .role-card .label{
     position:relative;
     padding:6px 6px;
     font-size:13px;
     line-height:1.1;
+    opacity:0;
   }
 
   /* =========================
@@ -1091,8 +1115,10 @@
 </div>
 
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
+<div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
 
 <div id="seatPop" class="seat-pop hidden">
+
   <div class="row"><label>席を選択</label><div id="seatTabs" class="tabs"></div></div>
   <div class="row" style="justify-content:flex-end">
     <button class="btn small ghost" id="btnSeatCancel">観戦</button>
@@ -1214,6 +1240,7 @@ const roomInfoLobby = document.getElementById('roomInfoLobby');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
 
 const hostSelectingPop = document.getElementById('hostSelectingPop');
+const coinWarningPop = document.getElementById('coinWarningPop');
 
 const seatPop = document.getElementById('seatPop');
 const seatTabs = document.getElementById('seatTabs');
@@ -1350,15 +1377,15 @@ helpBackdrop.addEventListener('click', (e) => { if (e.target === helpBackdrop) c
    ========================= */
 const ASSET = {
   roleFront: {
-    "白薔薇": "role_shirobara.png",
-    "司教": "role_shikyou.png",
-    "信者": "role_shinja.png",
-    "双刃": "role_soujin.png",
-    "暗刃": "role_anjin.png",
-    "巨刃": "role_kyogin.png",
-    "霊魂": "role_reikon.png"
+    "白薔薇": "bara.jpg",
+    "司教": "sikyo.jpg",
+    "信者": "shinja.jpg",
+    "双刃": "double.jpg",
+    "暗刃": "anjin.jpg",
+    "巨刃": "kyojin.jpg",
+    "霊魂": "reikon.jpg"
   },
-  roleBack: "role_back.png",
+  roleBack: "baraura.jpg",
   passFront: "pass.png"
 };
 
@@ -1386,6 +1413,7 @@ const ui = {
   playedBackByUserId: new Map(),
   miniHandByUserId: new Map(),
   miniHandHitByUserId: new Map(),
+  miniHandSquareByUserId: new Map(),
 
   coinEl: null,
   ownedCoinDotByOwnerId: new Map(),
@@ -1499,7 +1527,8 @@ function subscribeGame(){
     // ★追加：効果5リンク更新
     renderPower5Link();
     maybeResetPower5Link();
-updateHandmarks(); 
+    updateHandmarks(); 
+    updateMiniHandSquares();
   });
 }
 function subscribePlays(){
@@ -1633,6 +1662,23 @@ function getRoleCount(uid){
   const hd = state.hands?.[uid];
   const arr = (hd && Array.isArray(hd.roleCards)) ? hd.roleCards : [];
   return arr.length;
+}
+function hasLostCrystalChip(uid){
+  return !!(uid && state.game?.chipLosses && state.game.chipLosses[uid]);
+}
+function updateMiniHandSquares(){
+  for (const [uid, square] of ui.miniHandSquareByUserId){
+    square.classList.toggle('hidden', hasLostCrystalChip(uid));
+  }
+}
+function isCoinOwnerChangeRequired(){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'collect') return false;
+  const lastOwner = state.game?.lastCoinOwnerId || null;
+  if (!lastOwner) return false;
+  const currentOwner = state.coins?.[COIN_ID]?.ownerId ?? null;
+  return currentOwner === lastOwner;
 }
 function isPassHiddenForUid(uid){
   const started = !!state.game?.started;
@@ -2090,6 +2136,7 @@ async function maybeResetPower5Link(){
 async function onOtherHandClicked(targetUid, event){
   if (!state.roomCode) return;
   if (targetUid === state.userId) return;
+  if (isCoinOwnerChangeRequired()) return;
 
   // 効果10
   if (isMyPower10Selecting()){
@@ -2681,9 +2728,10 @@ function maybeFinishPower34Shuffle(){
 function isRolePlayableNow(){
   if (!state.game?.started) return false;
   const phase = state.game?.phase || 'collect';
-  if (phase !== 'collect'){
+ if (phase !== 'collect'){
     return isPower10ChangeAllowed();
   }
+  if (isCoinOwnerChangeRequired()) return false;
   if (isPower5SelectionIncomplete()) return false;
   if (isEveryoneDecided()) return false;
   if (isMyPlayLockedByPower34()) return false;
@@ -2764,6 +2812,25 @@ function updateGameUI(){
 
 }
 
+let coinWarningTimer = null;
+function showCoinWarningPop(){
+  if (!coinWarningPop) return;
+  coinWarningPop.classList.remove('hidden');
+  if (coinWarningTimer) clearTimeout(coinWarningTimer);
+  coinWarningTimer = setTimeout(() => {
+    coinWarningPop.classList.add('hidden');
+  }, 1600);
+}
+
+async function maybeClearCoinOwnerChangeLock(newOwnerId){
+  const lastOwner = state.game?.lastCoinOwnerId || null;
+  if (!lastOwner) return;
+  if (newOwnerId === lastOwner) return;
+  if (!state.roomCode) return;
+  await update(ref(db, `rooms/${state.roomCode}/game`), { lastCoinOwnerId: null });
+}
+
+
 function renderHands(){
   renderMyHand();
   if (state.players.length) renderPlayerCircle(state.players);
@@ -2784,6 +2851,7 @@ function renderMyHand(){
   const myId = state.userId;
   const handData = state.hands[myId];
   const started = !!state.game.started;
+  const lostCrystal = hasLostCrystalChip(myId);
 
   if (started && handData && Array.isArray(handData.roleCards)) {
     handData.roleCards.forEach((name, idx) => {
@@ -2807,8 +2875,9 @@ function renderMyHand(){
       card.addEventListener('pointerdown', (e) => startDragCard(e, { kind:'role', cardName:name }));
 
       // ★追加（最小）：power34対象プレイヤーが「自分の手札を1回クリック」→即実行
-      card.addEventListener('click', (e) => {
+     card.addEventListener('click', (e) => {
         if (!state.game?.started) return;
+        if (isCoinOwnerChangeRequired()) return;
         const ctx = getPower34Context();
         if (!ctx) return;
         if (ctx.forcedUid !== state.userId) return; // 対象以外は無関係
@@ -2833,6 +2902,7 @@ function renderMyHand(){
       pass.innerHTML = `<div class="label">出さない</div>`;
       pass.addEventListener('click', async (e) => {
         e.stopPropagation();
+        if (isCoinOwnerChangeRequired()) return;
         if (isPower5SelectionIncomplete()) return;
         if (isMyPlayLockedByPower5Waiting()) return;
         if (isMyPlayLockedByPower5Pass()) return;
@@ -2846,7 +2916,7 @@ function renderMyHand(){
   const myRound = Number(state.game?.round || 0);
   const shouldHidePowerPop = (hidePowerPopRound != null && hidePowerPopRound === myRound);
 
-  if (started && handData && handData.numberCard && !shouldHidePowerPop) {
+  if (started && handData && handData.numberCard && !shouldHidePowerPop && !lostCrystal) {
     const n = Number(handData.numberCard);
     powerWrapper.style.display = '';
     powerCardEl.textContent = String(n);
@@ -3171,6 +3241,7 @@ function renderPlayerCircle(players){
   ui.owncoinByUserId.clear();
   ui.miniHandByUserId.clear();
   ui.miniHandHitByUserId.clear();
+  ui.miniHandSquareByUserId.clear();
 
   if (!players.length) return;
 
@@ -3224,6 +3295,10 @@ function renderPlayerCircle(players){
       const miniHand = document.createElement('div');
       miniHand.className = 'mini-hand';
 
+      const square = document.createElement('div');
+      square.className = 'mini-hand-square';
+      square.classList.toggle('hidden', hasLostCrystalChip(p.id));
+
       const count = roleCount;
       const spread = 70;
       const base = (count > 1) ? (-spread/2) : 0;
@@ -3235,9 +3310,10 @@ function renderPlayerCircle(players){
 
         const angleDeg = (count > 1) ? base + (spread/(count-1))*i : 0;
         c.style.transform = `translate(-50%,0) rotate(${angleDeg}deg)`;
-        c.style.zIndex = String(10 + i);
+       c.style.zIndex = String(10 + i);
         miniHand.appendChild(c);
       }
+      tag.appendChild(square);
       tag.appendChild(miniHand);
 
       // ★追加：クリック当たり判定（選択中だけ有効）
@@ -3252,6 +3328,7 @@ function renderPlayerCircle(players){
 
       ui.miniHandByUserId.set(p.id, miniHand);
       ui.miniHandHitByUserId.set(p.id, hit);
+      ui.miniHandSquareByUserId.set(p.id, square);
     }
 
     node.appendChild(owncoin);
@@ -3267,8 +3344,10 @@ function renderPlayerCircle(players){
   renderOwnedCoinsBadges();
   updateSelectModeUI();
   updateHandmarks();
+  updateMiniHandSquares();
   renderPower5Link();
 }
+
 
 /* =========================
    追い出しダイアログ
@@ -3562,8 +3641,10 @@ async function startGameDeal(){
       power34: null,
       power10: null,
       power5: null,
-      power11: null,   // ★追加
+     power11: null,   // ★追加
       power112: null,  // ★追加
+      chipLosses: {},
+      lastCoinOwnerId: null,
       tableList: null,
       waitStartedAt: null,
       shuffleStartedAt: null,
@@ -4003,6 +4084,12 @@ btnNextRound.addEventListener('click', async () => {
   const list = Array.isArray(game.tableList) ? game.tableList : [];
   const round = Number(game.round || 1);
 
+  const coinSnap = await get(ref(db, `${base}/coins/${COIN_ID}`));
+  const coin = coinSnap.val() || {};
+  const endOwnerId = coin.ownerId || null;
+  const chipLosses = { ...(game.chipLosses || {}) };
+  if (endOwnerId) chipLosses[endOwnerId] = true;
+
   const bladePlayed = list.some(it => it && it.kind === 'role' && BLADE_SET.has(it.card));
 
   const toRose = [];
@@ -4053,7 +4140,7 @@ btnNextRound.addEventListener('click', async () => {
   });
 
   await Promise.all([
-    set(ref(db, `${base}/plays`), null),
+   set(ref(db, `${base}/plays`), null),
     update(ref(db, `${base}/game`), {
       round: round + 1,
       phase: 'collect',
@@ -4064,6 +4151,8 @@ btnNextRound.addEventListener('click', async () => {
       power5: null,
       power11: null,   // ★追加
       power112: null,  // ★追加
+      chipLosses,
+      lastCoinOwnerId: endOwnerId,
       tableList: null,
       waitStartedAt: null,
       shuffleStartedAt: null
@@ -4078,6 +4167,7 @@ let drag = null;
 
 function startDragCard(e, payload){
   if (!state.game.started) return;
+  if (isCoinOwnerChangeRequired()) return;
 
   const phase = state.game.phase || 'collect';
   const power10Allowed = isPower10ChangeAllowed();
@@ -4294,6 +4384,12 @@ function getOwncoinHitUserId(clientX, clientY){
   }
   return null;
 }
+function canTransferCoinTo(targetUid, prevOwnerId){
+  if (!targetUid) return true;
+  if (!hasLostCrystalChip(targetUid)) return true;
+  return prevOwnerId === targetUid;
+}
+
 
 function moveCoinGhost(x, y){
   const g = coinDrag?.ghost;
@@ -4415,7 +4511,23 @@ function startDragCoinFromPool(e){
 
   realEl.style.opacity = '0.25';
 
-  coinDrag = { pointerId, ghost, source:'pool', sourceOwnerId:null, raf:null, lastClientX:e.clientX, lastClientY:e.clientY };
+  const prevState = {
+    ownerId: c?.ownerId ?? null,
+    xPct: c?.xPct ?? 0.5,
+    yPct: c?.yPct ?? 0.5
+  };
+
+  coinDrag = {
+    pointerId,
+    ghost,
+    source:'pool',
+    sourceOwnerId:null,
+    raf:null,
+    lastClientX:e.clientX,
+    lastClientY:e.clientY,
+    prevState
+  };
+
 
   const { xPct, yPct } = pctFromClientXY(e.clientX, e.clientY);
   update(ref(db, `rooms/${state.roomCode}/coins/${COIN_ID}`), {
@@ -4454,6 +4566,7 @@ function startDragCoinFromPool(e){
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
 
+    const prev = coinDrag?.prevState || null;
     coinDrag.ghost.remove();
     coinDrag = null;
     realEl.style.opacity = '';
@@ -4464,12 +4577,24 @@ function startDragCoinFromPool(e){
     const hitUid = getOwncoinHitUserId(ev.clientX, ev.clientY);
 
     if (hitUid){
+      if (!canTransferCoinTo(hitUid, prev?.ownerId ?? null)){
+        showCoinWarningPop();
+        await update(ref(db, `rooms/${state.roomCode}/coins/${COIN_ID}`), {
+          ownerId: prev?.ownerId ?? null,
+          xPct: prev?.xPct ?? 0.5,
+          yPct: prev?.yPct ?? 0.5,
+          lockBy: null,
+          updatedAt: Date.now()
+        });
+        return;
+      }
       await update(ref(db, `rooms/${state.roomCode}/coins/${COIN_ID}`), {
         ownerId: hitUid,
         lockBy: null,
         updatedAt: Date.now()
       });
       await setPowerDisplayForOwner(hitUid);
+      await maybeClearCoinOwnerChangeLock(hitUid);
       return;
     }
 
@@ -4480,6 +4605,7 @@ function startDragCoinFromPool(e){
         lockBy: null,
         updatedAt: Date.now()
       });
+      await maybeClearCoinOwnerChangeLock(null);
       return;
     }
 
@@ -4515,7 +4641,22 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
 
   srcEl.style.opacity = '0.25';
 
-  coinDrag = { pointerId, ghost, source:'owned', sourceOwnerId:currentOwnerId, raf:null, lastClientX:e.clientX, lastClientY:e.clientY };
+  const prevState = {
+    ownerId: c?.ownerId ?? currentOwnerId ?? null,
+    xPct: c?.xPct ?? 0.5,
+    yPct: c?.yPct ?? 0.5
+  };
+
+  coinDrag = {
+    pointerId,
+    ghost,
+    source:'owned',
+    sourceOwnerId:currentOwnerId,
+    raf:null,
+    lastClientX:e.clientX,
+    lastClientY:e.clientY,
+    prevState
+  };
 
   update(ref(db, `rooms/${state.roomCode}/coins/${coinId}`), {
     lockBy: state.userId,
@@ -4536,19 +4677,32 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
 
+    const prev = coinDrag?.prevState || null;
     coinDrag.ghost.remove();
     coinDrag = null;
-    srcEl.style.opacity = '';
+    srcEl.style.opacity = ''
 
     const hitUid = getOwncoinHitUserId(ev.clientX, ev.clientY);
 
     if (hitUid){
+      if (!canTransferCoinTo(hitUid, prev?.ownerId ?? null)){
+        showCoinWarningPop();
+        await update(ref(db, `rooms/${state.roomCode}/coins/${coinId}`), {
+          ownerId: prev?.ownerId ?? null,
+          xPct: prev?.xPct ?? 0.5,
+          yPct: prev?.yPct ?? 0.5,
+          lockBy: null,
+          updatedAt: Date.now()
+        });
+        return;
+      }
       await update(ref(db, `rooms/${state.roomCode}/coins/${coinId}`), {
         ownerId: hitUid,
         lockBy: null,
         updatedAt: Date.now()
       });
       await setPowerDisplayForOwner(hitUid);
+      await maybeClearCoinOwnerChangeLock(hitUid);
       return;
     }
 
@@ -4557,7 +4711,9 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
       lockBy: null,
       updatedAt: Date.now()
     });
+    await maybeClearCoinOwnerChangeLock(null);
   };
+
 
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
@@ -4694,6 +4850,8 @@ btnResetRoom.addEventListener('click', async () => {
       power5: null,
       power11: null,
       power112: null,
+      chipLosses: null,
+      lastCoinOwnerId: null,
       tableList: null,
       waitStartedAt: null,
       shuffleStartedAt: null
