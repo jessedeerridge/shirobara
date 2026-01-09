@@ -139,6 +139,10 @@
     z-index:2;
   }
   .player-tag.me{ background:#111;color:#fff;border-color:#111; }
+  .player-tag.power5-selected{
+    outline:2px dashed rgba(220,38,38,.95);
+    outline-offset:2px;
+  }
 
   /* 所有コイン表示（タグ右側・タグ内ではない） */
   .owned-coins{
@@ -969,6 +973,10 @@
       stroke="rgba(220,38,38,.95)"
       stroke-width="3"
       stroke-dasharray="6 6" />
+    <text id="power5LinkBow" x="0" y="0"
+      font-size="20"
+      text-anchor="middle"
+      dominant-baseline="middle">🎀</text>
   </svg>
 </div>
 
@@ -1281,10 +1289,12 @@ const peekLabel = document.getElementById('peekLabel');
 const power5LinkLayer = document.getElementById('power5LinkLayer');
 const power5LinkSvg = document.getElementById('power5LinkSvg');
 const power5LinkLine = document.getElementById('power5LinkLine');
+const power5LinkBow = document.getElementById('power5LinkBow');
 const arrowLayer = document.getElementById('arrowLayer');
 const arrowSvg = document.getElementById('arrowSvg');
 const arrowLine = document.getElementById('arrowLine');
 const arrowEye = document.getElementById('arrowEye');
+
 
 
 /* =========================
@@ -1700,6 +1710,18 @@ function getPower5State(){
   if (Number(p5.round || 0) !== round) return null;
   return p5;
 }
+function isPower5SelectionIncomplete(){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'collect') return false;
+  const pd = state.game?.powerDisplay || null;
+  if (!pd || Number(pd.number) !== 5) return false;
+  const p5 = getPower5State();
+  if (!p5 || p5.ownerId !== pd.ownerId) return true;
+  const targets = Array.isArray(p5.targets) ? p5.targets : [];
+  return targets.length < 2;
+}
+
 
 function isMyPlayLockedByPower5Pass(){
   const p5 = getPower5State();
@@ -1724,8 +1746,6 @@ function isMyPower5Selectable(){
   const phase = state.game?.phase || 'collect';
   if (!started || phase !== 'collect') return false;
   if (!isMyPowerDisplay(5)) return false;
-  const p5 = getPower5State();
-  if (p5 && p5.used && p5.ownerId === state.userId) return false;
   return true;
 }
 
@@ -1942,19 +1962,42 @@ function ensurePower5SvgSize(){
 }
 window.addEventListener('resize', () => { ensurePower5SvgSize(); renderPower5Link(); });
 
+function updatePower5TagSelection(){
+  for (const tag of ui.tagByUserId.values()){
+    tag.classList.remove('power5-selected');
+  }
+
+  const pd = state.game?.powerDisplay || null;
+  if (!pd || Number(pd.number) !== 5) return;
+
+  const p5 = getPower5State();
+  if (!p5 || p5.ownerId !== pd.ownerId) return;
+  const targets = Array.isArray(p5.targets) ? p5.targets : [];
+
+  for (const uid of targets){
+    const tag = ui.tagByUserId.get(uid);
+    if (tag) tag.classList.add('power5-selected');
+  }
+}
+
 function renderPower5Link(){
   ensurePower5SvgSize();
 
   const p5 = getPower5State();
   const round = Number(state.game?.round || 0);
+  const pd = state.game?.powerDisplay || null;
+
+  updatePower5TagSelection();
 
   const active =
     !!p5 &&
     !!p5.used &&
     Number(p5.round || 0) === round &&
+    !!pd &&
+    Number(pd.number) === 5 &&
+    pd.ownerId === p5.ownerId &&
     Array.isArray(p5.targets) &&
     p5.targets.length === 2;
-
   if (!active){
     power5LinkLayer.classList.add('hidden');
     stopPower5LinkLoop();
@@ -1998,6 +2041,10 @@ function renderPower5Link(){
     power5LinkLine.setAttribute('y1', String(y1));
     power5LinkLine.setAttribute('x2', String(x2));
     power5LinkLine.setAttribute('y2', String(y2));
+    const mx = (x1 + x2) / 2;
+    const my = (y1 + y2) / 2;
+    power5LinkBow.setAttribute('x', String(mx));
+    power5LinkBow.setAttribute('y', String(my));
 
     power5LinkRaf = requestAnimationFrame(tick);
   };
@@ -2607,12 +2654,14 @@ function isRolePlayableNow(){
   if (phase !== 'collect'){
     return isPower10ChangeAllowed();
   }
+  if (isPower5SelectionIncomplete()) return false;
   if (isEveryoneDecided()) return false;
   if (isMyPlayLockedByPower34()) return false;
   if (isMyPlayLockedByPower5Waiting()) return false;
   if (isMyPlayLockedByPower5Pass()) return false;
   return true;
 }
+
 function applyPlayableAnimToMyHand(){
   const playable = isRolePlayableNow();
   myHandEl.querySelectorAll('.role-card').forEach(el => {
@@ -2744,6 +2793,7 @@ function renderMyHand(){
     const passShouldShow =
       !isPassHiddenForUid(myId) &&
       !isPower10ChangeAllowed(myId) &&
+      !isPower5SelectionIncomplete() &&
       !isMyPlayLockedByPower5Waiting();
 
     if (passShouldShow){
@@ -2753,6 +2803,7 @@ function renderMyHand(){
       pass.innerHTML = `<div class="label">出さない</div>`;
       pass.addEventListener('click', async (e) => {
         e.stopPropagation();
+        if (isPower5SelectionIncomplete()) return;
         if (isMyPlayLockedByPower5Waiting()) return;
         if (isMyPlayLockedByPower5Pass()) return;
         await setMyPlay({ kind:'pass' });
@@ -4006,6 +4057,8 @@ function startDragCard(e, payload){
 
   // ★効果3/4で選べない人はドラッグ不可
   if (!power10Allowed && isMyPlayLockedByPower34()) return;
+  // ★効果5：2人決定前は全員選択不可
+  if (!power10Allowed && isPower5SelectionIncomplete()) return;
   // ★効果5：先の人が決めるまで後の人はドラッグ不可
   if (!power10Allowed && isMyPlayLockedByPower5Waiting()) return;
   // ★効果5で先が✕の時、後の人は選択不可
@@ -4081,6 +4134,8 @@ async function setMyPlay({ kind, cardName=null }){
 
   // ★効果3/4で選べない人は「出さない」も不可
   if (!power10Allowed && isMyPlayLockedByPower34()) return;
+  // ★効果5：2人決定前は全員選択不可
+  if (!power10Allowed && isPower5SelectionIncomplete()) return;
   // ★効果5：先の人が決めるまで後の人は不可
   if (!power10Allowed && isMyPlayLockedByPower5Waiting()) return;
   // ★効果5：先の人が✕なら後の人はカード不可（✕のみ許可）
