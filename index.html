@@ -957,6 +957,105 @@
   filter: drop-shadow(0 2px 4px rgba(0,0,0,.25));
 }
 
+/* =========================
+   ★追加：公開時「白薔薇＋刃」演出
+   ========================= */
+.roseblade-overlay{
+  position:fixed; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.08);
+  z-index:720;
+  pointer-events:none;
+}
+.roseblade-overlay.hidden{ display:none; }
+
+.rb-stage{
+  position:relative;
+  width:220px; height:300px;   /* ←大きく */
+  transform:translateZ(0);
+}
+
+.rb-rose, .rb-blade{
+  position:absolute;
+  left:50%; top:50%;
+  width:140px; height:210px;   /* ←大きく */
+  border-radius:18px;
+  border:1px solid rgba(0,0,0,.22);
+  background:#fff;
+  background-size:cover;
+  background-position:center;
+  box-shadow:0 22px 60px rgba(0,0,0,.30);
+  transform:translate(-50%,-50%);
+  opacity:0;
+}
+
+
+.rb-rose{ z-index:2; }
+.rb-blade{ z-index:1; }
+
+.rb-pieces{
+  position:absolute; inset:0;
+  z-index:3;
+  pointer-events:none;
+}
+
+.rb-piece{
+  position:absolute;
+  left:50%; top:50%;
+  width:28px; height:42px;
+  border-radius:8px;
+  border:1px solid rgba(0,0,0,.18);
+  background:#fff;
+  background-size:cover;
+  background-position:center;
+  box-shadow:0 14px 30px rgba(0,0,0,.18);
+  transform:translate(-50%,-50%) rotate(0deg);
+  opacity:0;
+}
+
+/* 再生トリガ */
+.roseblade-overlay.play .rb-rose{
+  animation: rbRoseIn .22s ease-out both, rbRoseScatter .62s ease-in .22s both;
+}
+.roseblade-overlay.play .rb-blade{
+  animation: rbBladeIn .22s ease-out .44s both, rbBladeShake .38s ease-in-out .66s both;
+}
+.roseblade-overlay.play .rb-piece{
+  animation: rbPiecePop .10s ease-out .22s both, rbPieceFly .70s ease-out .24s both;
+}
+
+@keyframes rbRoseIn{
+  from{ opacity:0; transform:translate(-50%,-50%) translateY(14px) scale(.98); }
+  to  { opacity:1; transform:translate(-50%,-50%) translateY(0) scale(1); }
+}
+@keyframes rbRoseScatter{
+  0%  { opacity:1; transform:translate(-50%,-50%) scale(1); filter:none; }
+  100%{ opacity:0; transform:translate(-50%,-50%) scale(.92); filter:blur(.4px); }
+}
+@keyframes rbBladeIn{
+  from{ opacity:0; transform:translate(-50%,-50%) scale(.92); }
+  to  { opacity:1; transform:translate(-50%,-50%) scale(1); }
+}
+@keyframes rbBladeShake{
+  0%  { transform:translate(-50%,-50%) rotate(0deg); }
+  20% { transform:translate(calc(-50% - 1px),-50%) rotate(-3deg); }
+  45% { transform:translate(calc(-50% + 2px),-50%) rotate(3deg); }
+  70% { transform:translate(calc(-50% - 1px),-50%) rotate(-2deg); }
+  100%{ transform:translate(-50%,-50%) rotate(0deg); }
+}
+@keyframes rbPiecePop{
+  from{ opacity:0; transform:translate(-50%,-50%) scale(.9); }
+  to  { opacity:1; transform:translate(-50%,-50%) scale(1); }
+}
+@keyframes rbPieceFly{
+  from{ transform:translate(-50%,-50%) rotate(0deg); opacity:1; }
+  to{
+    transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--rot));
+    opacity:0;
+  }
+}
+
+
 
 </style>
 </head>
@@ -990,6 +1089,17 @@
     <div id="peekLabel" class="peek-label">—</div>
   </div>
 </div>
+
+<!-- ★追加：公開時「白薔薇＋刃」演出（全員） -->
+<div id="roseBladeOverlay" class="roseblade-overlay hidden" aria-hidden="true">
+  <div class="rb-stage">
+    <div id="rbBlade" class="rb-blade" aria-hidden="true"></div>
+    <div id="rbRose" class="rb-rose" aria-hidden="true"></div>
+    <div id="rbPieces" class="rb-pieces" aria-hidden="true"></div>
+  </div>
+</div>
+
+
 
 <!-- ★追加：効果5 赤点線リンク（全員） -->
 <div id="power5LinkLayer" class="power5-link-layer hidden" aria-hidden="true">
@@ -1323,6 +1433,11 @@ const arrowSvg = document.getElementById('arrowSvg');
 const arrowLine = document.getElementById('arrowLine');
 const arrowEye = document.getElementById('arrowEye');
 
+/* ★追加：公開時「白薔薇＋刃」演出 */
+const roseBladeOverlay = document.getElementById('roseBladeOverlay');
+const rbRose = document.getElementById('rbRose');
+const rbBlade = document.getElementById('rbBlade');
+const rbPieces = document.getElementById('rbPieces');
 
 
 /* =========================
@@ -1469,6 +1584,100 @@ let lastRoundSeen = 0;
 let hidePowerPopRound = null;
 let peekTimer = null;
 
+/* ★追加：公開演出（白薔薇＋刃）を1ラウンド1回だけ */
+let lastRoseBladeAnimRound = 0;
+let lastPhaseSeen = null;
+let roseBladeDelayTimer = null;
+
+
+function pickBladeNameFromPlays(){
+  const plays = state.plays || {};
+  let blade = null;
+
+  // 優先（双刃→暗刃→巨刃→大刃）
+  const prefer = ["双刃","暗刃","巨刃","大刃"];
+  const found = new Set();
+
+  for (const v of Object.values(plays)){
+    if (!v || v.kind !== 'role') continue;
+    if (BLADE_SET.has(v.card)) found.add(v.card);
+  }
+  for (const n of prefer){
+    if (found.has(n)){ blade = n; break; }
+  }
+  return blade;
+}
+
+function shouldPlayRoseBladeAnimNow(){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started) return false;
+
+  // 「公開時」＝ table に入った瞬間を狙う（必要なら reveal2 も追加可）
+  if (phase !== 'table') return false;
+
+  const round = Number(state.game?.round || 0);
+  if (!round) return false;
+  if (lastRoseBladeAnimRound === round) return false;
+
+  // 白薔薇＋刃 が同時に出ているか（playsから判定）
+  let hasRose = false;
+  for (const v of Object.values(state.plays || {})){
+    if (!v || v.kind !== 'role') continue;
+    if (v.card === '白薔薇') hasRose = true;
+  }
+  const blade = pickBladeNameFromPlays();
+  if (!hasRose || !blade) return false;
+
+  return true;
+}
+
+function playRoseBladeRevealAnim(){
+  if (!roseBladeOverlay || !rbRose || !rbBlade || !rbPieces) return;
+
+  const bladeName = pickBladeNameFromPlays();
+  if (!bladeName) return;
+
+  // 画像セット
+  rbRose.style.backgroundImage = `url('${ASSET.roleFront["白薔薇"] || "bara.jpg"}')`;
+  rbBlade.style.backgroundImage = `url('${ASSET.roleFront[bladeName] || ""}')`;
+
+  // 破片生成（毎回作り直し）
+  rbPieces.innerHTML = '';
+  const dirs = [
+    {dx:-110, dy:-90, rot:-28},{dx:-40, dy:-130, rot:18},
+    {dx: 45, dy:-120, rot:-14},{dx: 120, dy:-85, rot:26},
+    {dx:-135, dy: 28, rot:22},{dx:-60, dy: 120, rot:-22},
+    {dx: 70, dy: 125, rot:16},{dx: 140, dy: 30, rot:-26},
+  ];
+
+  for (let i=0;i<dirs.length;i++){
+    const p = document.createElement('div');
+    p.className = 'rb-piece';
+    p.style.backgroundImage = `url('${ASSET.roleFront["白薔薇"] || "bara.jpg"}')`;
+    p.style.setProperty('--dx', `${dirs[i].dx}px`);
+    p.style.setProperty('--dy', `${dirs[i].dy}px`);
+    p.style.setProperty('--rot', `${dirs[i].rot}deg`);
+    rbPieces.appendChild(p);
+  }
+
+  // 再生
+  roseBladeOverlay.classList.remove('hidden');
+  roseBladeOverlay.classList.remove('play');
+  // reflow
+  void roseBladeOverlay.offsetWidth;
+  roseBladeOverlay.classList.add('play');
+
+  // 後始末
+  setTimeout(() => {
+    roseBladeOverlay.classList.add('hidden');
+    roseBladeOverlay.classList.remove('play');
+    rbPieces.innerHTML = '';
+  }, 3000);
+}
+
+
+
 /* =========================
    購読
    ========================= */
@@ -1519,6 +1728,38 @@ function subscribeGame(){
     maybeHostAdvanceRound();
     renderTableCards();
     renderPlays();
+
+    // ★追加：公開時「白薔薇＋刃」演出（tableに入った瞬間→3秒後に再生）
+    const phaseNow = state.game?.phase || 'collect';
+    if (lastPhaseSeen !== phaseNow){
+      lastPhaseSeen = phaseNow;
+
+      // phaseが変わったら予約をクリア（別フェーズへ移動した場合の暴発防止）
+      if (roseBladeDelayTimer){
+        clearTimeout(roseBladeDelayTimer);
+        roseBladeDelayTimer = null;
+      }
+
+      if (shouldPlayRoseBladeAnimNow()){
+        const roundNow = Number(state.game?.round || 0);
+        lastRoseBladeAnimRound = roundNow;
+
+        // 「公開カードが出てから3秒後」＝ table描画後に3秒待って再生
+        roseBladeDelayTimer = setTimeout(() => {
+          roseBladeDelayTimer = null;
+
+          // 念のため：まだ同じラウンド＆table中なら再生
+          const r2 = Number(state.game?.round || 0);
+          const ph2 = state.game?.phase || 'collect';
+          if (r2 === roundNow && ph2 === 'table'){
+            playRoseBladeRevealAnim();
+          }
+        }, 2000);
+      }
+    }
+
+
+
     applyPlayableAnimToMyHand();
 
     // ★追加：効果11矢印（全員）更新
