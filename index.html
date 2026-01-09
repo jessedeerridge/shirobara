@@ -745,23 +745,35 @@
   }
   .spirit-card:active{cursor:grabbing;}
 
-  /* =========================
-     ★追加：効果3/4の「裏面シャッフル→1枚提出」演出
+/* =========================
+     ★更新：効果3/4の「自分の手札シャッフル」演出
      ========================= */
-  .force-shuffle-anim{
-    position:fixed;
-    left:50%;
-    top:50%;
-    transform:translate(-50%,-50%);
-    width:120px;height:120px;
-    z-index:560;
-    display:none;
+  .my-hand.power34-hidden .role-card,
+  .my-hand.power34-hidden .pass-card{
+    opacity:0;
     pointer-events:none;
   }
-  .force-shuffle-anim.show{display:block;}
-  .force-shuffle-anim .shuffle-card{
-    width:52px;height:78px;
-    border-radius:12px;
+  .power34-shuffle-overlay{
+    position:fixed;
+    inset:0;
+    display:none;
+    z-index:560;
+    pointer-events:none;
+  }
+  .power34-shuffle-overlay.show{display:block;}
+  .power34-shuffle-card{
+    position:absolute;
+    border-radius:10px;
+    border:1px solid rgba(0,0,0,.22);
+    background-size:cover;
+    background-position:center;
+    box-shadow:0 12px 24px rgba(0,0,0,.25);
+    transform:translate(0,0) rotate(0deg);
+    transition:transform 0.55s ease;
+    will-change:transform;
+  }
+  .power34-shuffle-overlay.stacked .power34-shuffle-card{
+    transform:translate(var(--tx), var(--ty)) rotate(var(--rot));
   }
 
 </style>
@@ -791,13 +803,6 @@
 </div>
 
 <!-- ★追加：効果3/4の強制提出時（裏面シャッフル演出） -->
-<div id="forceShuffleAnim" class="force-shuffle-anim" aria-hidden="true">
-  <div class="shuffle-card"></div>
-  <div class="shuffle-card"></div>
-  <div class="shuffle-card"></div>
-  <div class="shuffle-card"></div>
-</div>
-
 <main id="main" class="prejoin">
   <div class="join-box" id="joinBox">
     <input id="userName" placeholder="名前（4文字以内）" maxlength="4" />
@@ -922,6 +927,9 @@
   <div id="coinPoolInner" class="coin-pool-inner"></div>
 </div>
 
+<!-- ★更新：効果3/4の手札シャッフル演出（自分だけ） -->
+<div id="power34ShuffleOverlay" class="power34-shuffle-overlay" aria-hidden="true"></div>
+
 <!-- ★ホスト：次ラウンド -->
 <button id="btnNextRound" class="next-round-btn" title="次ラウンド">次<br>ラウンド</button>
 
@@ -1035,7 +1043,7 @@ const tableGrid = document.getElementById('tableGrid');
 
 const btnNextRound = document.getElementById('btnNextRound');
 
-const forceShuffleAnim = document.getElementById('forceShuffleAnim');
+const power34ShuffleOverlay = document.getElementById('power34ShuffleOverlay');
 
 /* =========================
    1〜12の効果
@@ -1223,6 +1231,7 @@ function subscribePlays(){
     applyPlayableAnimToMyHand();
     // ★追加：効果3/4の監視（トリガー/強制提出）
     maybeTriggerPower34AutoPlays();
+    maybeFinishPower34Shuffle();
   });
 }
 function subscribeCoins(){
@@ -1316,7 +1325,9 @@ function isMyPlayLockedByPower34(){
      手札0なら何も起きない（passにしない）
      二重発火防止：rooms/{room}/game/power34
      ========================= */
-let localForceShuffleTimer = null;
+let power34ShuffleActive = false;
+let power34ShuffleCleanupTimer = null;
+let lastPower34AnimAt = 0;
 let power34WaitTimer = null;
 let power34WaitKey = null;
 function clearPower34WaitTimer(){
@@ -1327,13 +1338,63 @@ function clearPower34WaitTimer(){
   power34WaitKey = null;
 }
 
-function showForceShuffleAnim(){
-  if (!forceShuffleAnim) return;
-  forceShuffleAnim.classList.add('show');
-  clearTimeout(localForceShuffleTimer);
-  localForceShuffleTimer = setTimeout(() => {
-    forceShuffleAnim.classList.remove('show');
-  }, 720);
+function clearPower34ShuffleOverlay(){
+  if (power34ShuffleCleanupTimer){
+    clearTimeout(power34ShuffleCleanupTimer);
+    power34ShuffleCleanupTimer = null;
+  }
+  if (!power34ShuffleOverlay) return;
+  power34ShuffleOverlay.classList.remove('stacked', 'show');
+  power34ShuffleOverlay.innerHTML = '';
+  myHandEl.classList.remove('power34-hidden');
+  power34ShuffleActive = false;
+}
+
+function startPower34ShuffleAnim(){
+  if (!power34ShuffleOverlay || power34ShuffleActive) return;
+  const cards = Array.from(myHandEl.querySelectorAll('.role-card'));
+  if (!cards.length) return;
+
+  const handRect = myHandEl.getBoundingClientRect();
+  const sampleRect = cards[0].getBoundingClientRect();
+  const stackX = handRect.left + handRect.width / 2 - sampleRect.width / 2;
+  const stackY = handRect.top + Math.min(handRect.height * 0.45, 50);
+
+  power34ShuffleOverlay.innerHTML = '';
+  power34ShuffleOverlay.classList.add('show');
+  myHandEl.classList.add('power34-hidden');
+
+  cards.forEach((card, idx) => {
+    const rect = card.getBoundingClientRect();
+    const overlay = document.createElement('div');
+    overlay.className = 'power34-shuffle-card';
+    overlay.style.width = `${rect.width}px`;
+    overlay.style.height = `${rect.height}px`;
+    overlay.style.left = `${rect.left}px`;
+    overlay.style.top = `${rect.top}px`;
+    overlay.style.backgroundImage = `url('${ASSET.roleBack}')`;
+    const dx = stackX - rect.left;
+    const dy = stackY - rect.top;
+    const rot = (Math.random() * 18 - 9).toFixed(1);
+    overlay.style.setProperty('--tx', `${dx}px`);
+    overlay.style.setProperty('--ty', `${dy}px`);
+    overlay.style.setProperty('--rot', `${rot}deg`);
+    overlay.style.zIndex = String(560 + idx);
+    power34ShuffleOverlay.appendChild(overlay);
+  });
+
+  power34ShuffleActive = true;
+  requestAnimationFrame(() => {
+    power34ShuffleOverlay.classList.add('stacked');
+  });
+}
+
+function endPower34ShuffleAnim(){
+  if (!power34ShuffleActive || !power34ShuffleOverlay) return;
+  power34ShuffleOverlay.classList.remove('stacked');
+  power34ShuffleCleanupTimer = setTimeout(() => {
+    clearPower34ShuffleOverlay();
+  }, 520);
 }
 
 async function maybeTriggerPower34AutoPlays(){
@@ -1518,13 +1579,24 @@ function subscribePower34Anim(){
     const started = !!state.game?.started;
     const phase = state.game?.phase || 'collect';
     if (!started || phase !== 'collect') return;
-    if (v.animAt && typeof v.animAt === 'number'){
-      if (Date.now() - v.animAt < 1200){
-        showForceShuffleAnim();
+    if (v.animAt && typeof v.animAt === 'number' && v.forcedUid === state.userId){
+      if (v.animAt > lastPower34AnimAt && Date.now() - v.animAt < 2000){
+        lastPower34AnimAt = v.animAt;
+        startPower34ShuffleAnim();
       }
     }
   });
 }
+
+function maybeFinishPower34Shuffle(){
+  if (!power34ShuffleActive) return;
+  const play = state.plays?.[state.userId];
+  if (!play) return;
+  if (play.forcedBy === 'power34'){
+    endPower34ShuffleAnim();
+  }
+}
+
 
 /* =========================
    ★プレイ可能な手札なら大小アニメ
