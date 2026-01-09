@@ -4266,7 +4266,7 @@ function renderTableCards(){
     if (isPass){
       el.textContent = '✕';
     } else {
-      el.textContent = item.card || '';
+      el.textContent = '';
       el.style.backgroundImage = `url('${ASSET.roleFront[item.card] || ''}')`;
     }
     tableGrid.appendChild(el);
