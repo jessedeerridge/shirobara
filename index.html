@@ -1257,37 +1257,37 @@ function isEveryoneDecided(){
    - 3: 「逆の人」が選べない（強制提出対象）
    - 4: 右（次手番）が選べない
    ========================= */
-function getRingIndexByUid(uid){
-  const arr = state.players || [];
-  return arr.findIndex(p => p.id === uid);
-}
-function getUidByRingIndex(i){
-  const arr = state.players || [];
-  if (!arr.length) return null;
-  const n = arr.length;
-  const idx = ((i % n) + n) % n;
-  return arr[idx]?.id || null;
-}
-function getRightUid(uid){
-  const i = getRingIndexByUid(uid);
-  if (i < 0) return null;
-  return getUidByRingIndex(i + 1);
-}
-function getLeftUid(uid){
-  const i = getRingIndexByUid(uid);
-  if (i < 0) return null;
-  return getUidByRingIndex(i - 1);
-}
-
-// ★追加：逆（だいたい対面）を取る（nが奇数でも floor(n/2) で決める）
-function getOppositeUid(uid){
-  const arr = state.players || [];
-  const n = arr.length;
-  if (!n) return null;
-  const i = getRingIndexByUid(uid);
-  if (i < 0) return null;
-  return getUidByRingIndex(i + Math.floor(n/2));
-}
+ function getSeatIndexByUid(uid){
+    return (state.players || []).find(p => p.id === uid)?.seatIndex ?? null;
+  }
+  function getUidBySeatIndex(seatIndex){
+    return (state.players || []).find(p => p.seatIndex === seatIndex)?.id || null;
+  }
+  function getMaxSeatCount(){
+    const maxPlayers = Number(state.room?.maxPlayers || 0);
+    const playerCount = (state.players || []).length;
+    return maxPlayers > 0 ? maxPlayers : playerCount;
+  }
+  function wrapSeatIndex(seatIndex){
+    const max = getMaxSeatCount();
+    if (!max) return null;
+    const idx = ((seatIndex - 1) % max + max) % max;
+    return idx + 1;
+  }
+  function getRightUid(uid){
+    const seatIndex = getSeatIndexByUid(uid);
+    if (seatIndex == null) return null;
+    const nextSeat = wrapSeatIndex(seatIndex + 1);
+    if (nextSeat == null) return null;
+    return getUidBySeatIndex(nextSeat);
+  }
+  function getLeftUid(uid){
+    const seatIndex = getSeatIndexByUid(uid);
+    if (seatIndex == null) return null;
+    const prevSeat = wrapSeatIndex(seatIndex - 1);
+    if (prevSeat == null) return null;
+    return getUidBySeatIndex(prevSeat);
+  }
 
 function getDisabledUidByPower34(){
   const started = !!state.game?.started;
@@ -1297,8 +1297,8 @@ function getDisabledUidByPower34(){
   if (!pd || !pd.ownerId) return null;
   const num = Number(pd.number);
 
-  // ★更新：3は「逆の人」、4は「右（次手番）」
-  if (num === 3) return getOppositeUid(pd.ownerId);
+  // ★更新：3は「左の人」、4は「右（次手番）」
+  if (num === 3) return getLeftUid(pd.ownerId);
   if (num === 4) return getRightUid(pd.ownerId);
   return null;
 }
@@ -1307,15 +1307,15 @@ function isMyPlayLockedByPower34(){
   return !!(disabledUid && disabledUid === state.userId);
 }
 
-/* =========================
-   ★効果3/4 強制提出トリガー監視（手順は時計回り）
-   - 3: forced=逆の人
-        trigger=逆の人のさらに向こう（逆の人の時計回りの隣）が決めた瞬間
-   - 4: forced=右（次手番）
-        trigger=owner が決めた瞬間
-   手札0なら何も起きない（passにしない）
-   二重発火防止：rooms/{room}/game/power34
-   ========================= */
+  /* =========================
+     ★効果3/4 強制提出トリガー監視（手順は時計回り）
+     - 3: forced=左の人
+          trigger=左の人が決めた瞬間
+     - 4: forced=右（次手番）
+          trigger=owner が決めた瞬間
+     手札0なら何も起きない（passにしない）
+     二重発火防止：rooms/{room}/game/power34
+     ========================= */
 let localForceShuffleTimer = null;
 let power34WaitTimer = null;
 let power34WaitKey = null;
@@ -1361,23 +1361,15 @@ async function maybeTriggerPower34AutoPlays(){
   const round = Number(state.game?.round || 1);
   const base = `rooms/${state.roomCode}`;
 
-  // ★更新：num=3は「逆」、num=4は「右（次手番）」
-  const forcedUid = (num === 3) ? getOppositeUid(pd.ownerId) : getRightUid(pd.ownerId);
+  // ★更新：num=3は「左」、num=4は「右（次手番）」
+  const forcedUid = (num === 3) ? getLeftUid(pd.ownerId) : getRightUid(pd.ownerId);
+
   if (!forcedUid){
     clearPower34WaitTimer();
     return;
   }
 
-  // ★更新：トリガー
-  // - 3: 逆の人のさらに向こう（逆の人の時計回りの隣）
-  // - 4: owner
-  const triggerUid = (num === 3)
-    ? (()=>{
-        const fi = getRingIndexByUid(forcedUid);
-        if (fi < 0) return null;
-        return getUidByRingIndex(fi + 1);
-      })()
-    : pd.ownerId;
+  const triggerUid = (num === 3) ? getLeftUid(forcedUid) : pd.ownerId;
 
   if (!triggerUid){
     clearPower34WaitTimer();
@@ -3164,4 +3156,3 @@ window.addEventListener('resize', () => {
 </script>
 </body>
 </html>
-
