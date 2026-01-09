@@ -267,15 +267,6 @@
     font-weight:1000;
   }
 
-  /* ★ シャッフルアニメ */
-  .shuffle-anim{
-    position:absolute;
-    left:50%; top:50%;
-    transform:translate(-50%,-50%);
-    width:120px;height:120px;
-    display:none;
-  }
-  .shuffle-anim.show{display:block;}
   .shuffle-card{
     position:absolute;
     left:50%; top:50%;
@@ -288,16 +279,6 @@
     box-shadow:0 12px 24px rgba(0,0,0,.22);
     transform:translate(-50%,-50%);
     opacity:.98;
-  }
-  .shuffle-anim.show .shuffle-card{ animation: shuf 0.7s cubic-bezier(.22,.84,.44,1) both; }
-  .shuffle-anim.show .shuffle-card:nth-child(1){ --dx:-24px; --dy:-10px; --rt:-12deg; }
-  .shuffle-anim.show .shuffle-card:nth-child(2){ --dx: 18px; --dy:-6px;  --rt: 10deg; }
-  .shuffle-anim.show .shuffle-card:nth-child(3){ --dx:-10px; --dy: 18px; --rt: 6deg;  }
-  .shuffle-anim.show .shuffle-card:nth-child(4){ --dx: 12px; --dy: 22px; --rt:-6deg;  }
-  @keyframes shuf{
-    0%{ transform:translate(-50%,-50%) rotate(0deg); }
-    55%{ transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--rt)); }
-    100%{ transform:translate(-50%,-50%) rotate(0deg); }
   }
 
   /* ★ 公開後：中央にカードを並べる（table） */
@@ -355,6 +336,33 @@
     box-shadow:0 8px 18px rgba(0,0,0,.18);
     pointer-events:none;
   }
+  .played-back,
+  .played-x{
+    transition: left 0.45s ease, top 0.45s ease, transform 0.45s ease;
+    will-change: left, top, transform;
+  }
+  .played-back.shuffling,
+  .played-x.shuffling{
+    animation: miniShuffle 1s ease-in-out both;
+  }
+  @keyframes miniShuffle{
+    0%{
+      transform:translate(-50%,-50%) rotate(0deg);
+    }
+    25%{
+      transform:translate(calc(-50% + var(--sx1)), calc(-50% + var(--sy1))) rotate(var(--sr1));
+    }
+    55%{
+      transform:translate(calc(-50% + var(--sx2)), calc(-50% + var(--sy2))) rotate(var(--sr2));
+    }
+    80%{
+      transform:translate(calc(-50% + var(--sx3)), calc(-50% + var(--sy3))) rotate(var(--sr3));
+    }
+    100%{
+      transform:translate(-50%,-50%) rotate(0deg);
+    }
+  }
+
   .played-back .bk{
     position:absolute; inset:0;
     border-radius:6px;
@@ -829,13 +837,6 @@
           </div>
         </div>
 
-        <div id="shuffleAnim" class="shuffle-anim" aria-hidden="true">
-          <div class="shuffle-card"></div>
-          <div class="shuffle-card"></div>
-          <div class="shuffle-card"></div>
-          <div class="shuffle-card"></div>
-        </div>
-
         <div id="tableArea" class="table-area" aria-label="table cards">
           <div class="table-grid" id="tableGrid"></div>
         </div>
@@ -1029,7 +1030,6 @@ const slotBlade = document.getElementById('slotBlade');
 const slotAlive = document.getElementById('slotAlive');
 const slotDead  = document.getElementById('slotDead');
 
-const shuffleAnim = document.getElementById('shuffleAnim');
 const tableArea = document.getElementById('tableArea');
 const tableGrid = document.getElementById('tableGrid');
 
@@ -1570,7 +1570,6 @@ function updateGameUI(){
 
   const phase = state.game.phase || 'collect';
 
-  shuffleAnim.classList.toggle('show', started && phase === 'shuffle');
   tableArea.classList.toggle('show', started && phase === 'table');
 
   btnNextRound.classList.toggle('visible', !!(started && state.isHost && (phase === 'table' || phase === 'reveal2')));
@@ -2152,24 +2151,58 @@ function renderPlays(){
   applyPlayableAnimToMyHand();
 }
 
+function hashToNumber(str){
+  let h = 0;
+  for (let i = 0; i < str.length; i++){
+    h = ((h << 5) - h) + str.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+
+function setShuffleVars(el, uid){
+  const base = hashToNumber(uid);
+  const jitter = (offset, range) => {
+    const v = Math.sin(base + offset) * 10000;
+    return (v - Math.floor(v)) * range * 2 - range;
+  };
+  el.style.setProperty('--sx1', `${jitter(1, 12).toFixed(1)}px`);
+  el.style.setProperty('--sy1', `${jitter(2, 10).toFixed(1)}px`);
+  el.style.setProperty('--sr1', `${jitter(3, 12).toFixed(1)}deg`);
+  el.style.setProperty('--sx2', `${jitter(4, 16).toFixed(1)}px`);
+  el.style.setProperty('--sy2', `${jitter(5, 14).toFixed(1)}px`);
+  el.style.setProperty('--sr2', `${jitter(6, 16).toFixed(1)}deg`);
+  el.style.setProperty('--sx3', `${jitter(7, 10).toFixed(1)}px`);
+  el.style.setProperty('--sy3', `${jitter(8, 12).toFixed(1)}px`);
+  el.style.setProperty('--sr3', `${jitter(9, 10).toFixed(1)}deg`);
+}
+
 function renderPlayedMarkers(){
   const plays = state.plays || {};
   const started = !!state.game?.started;
   const phase = state.game?.phase || 'collect';
+  const isShuffle = started && phase === 'shuffle';
   const isReveal2 = started && phase === 'reveal2';
 
+  const isTable = started && phase === 'table';
+
   for (const [uid, el] of ui.playedBackByUserId){
-    if (!plays[uid]) {
+    if (!plays[uid] || isTable) {
       el.remove();
       ui.playedBackByUserId.delete(uid);
     }
   }
+  if (isTable) return;
 
   const circleRect = playerCircle.getBoundingClientRect();
   const centerX = circleRect.left + circleRect.width/2;
   const centerY = circleRect.top  + circleRect.height/2;
+  const discardRect = discardTable.getBoundingClientRect();
+  const shuffleX = discardRect.left + discardRect.width/2;
+  const shuffleY = discardRect.top + discardRect.height/2;
 
   for (const uid of Object.keys(plays)){
+
     const p = plays[uid];
     if (!p) continue;
 
@@ -2230,16 +2263,36 @@ function renderPlayedMarkers(){
     marker.style.left = `${x}px`;
     marker.style.top  = `${y}px`;
 
+ if (isShuffle){
+      setShuffleVars(marker, uid);
+      marker.classList.add('shuffling');
+      marker.style.left = `${shuffleX}px`;
+      marker.style.top  = `${shuffleY}px`;
+    } else {
+      marker.classList.remove('shuffling');
+      marker.style.left = `${x}px`;
+      marker.style.top  = `${y}px`;
+    }
+
     if (p.kind === 'pass'){
-      marker.style.transform = `translate(-50%,-50%)` + (isReveal2 ? ' scale(0.7)' : '');
+      if (isShuffle){
+        marker.style.transform = 'translate(-50%,-50%)';
+      } else {
+        marker.style.transform = `translate(-50%,-50%)` + (isReveal2 ? ' scale(0.7)' : '');
+      }
     } else if (isReveal2){
       marker.style.backgroundImage = `url('${ASSET.roleFront[p.card] || ''}')`;
       marker.style.transform = `translate(-50%,-50%) scale(0.7)`;
     } else {
-      marker.style.transform = `translate(-50%,-50%) rotate(${(p.seatIndex||0)*3}deg)`;
+      if (isShuffle){
+        marker.style.transform = 'translate(-50%,-50%)';
+      } else {
+        marker.style.transform = `translate(-50%,-50%) rotate(${(p.seatIndex||0)*3}deg)`;
+      }
     }
   }
 }
+
 
 /* =========================
    ★全員提出後：3秒 → shuffle → table
@@ -2401,7 +2454,7 @@ function maybeHostAdvanceRound(){
   if (phase === 'shuffle'){
     const t = Number(state.game.shuffleStartedAt || 0);
     const now = Date.now();
-    const remain = (t ? (700 - (now - t)) : 0);
+    const remain = (t ? (1000 - (now - t)) : 0);
 
     if (remain <= 0){
       hostStepShuffleToTable();
