@@ -1,3 +1,4 @@
+
 <!DOCTYPE html> 
 <html lang="ja">
 <head>
@@ -180,6 +181,30 @@
     transform-origin:bottom center;
     box-shadow:0 2px 6px rgba(0,0,0,.15);
   }
+
+  /* ★追加：他プレイヤー手札選択（効果11/1/12）時の大小アニメ */
+  .mini-hand.selectable{
+    pointer-events:auto;
+    cursor:pointer;
+    animation: miniHandPulse 0.95s ease-in-out infinite;
+    will-change: transform;
+  }
+  @keyframes miniHandPulse{
+    0%   { transform:translate(-50%,3px) scale(1); }
+    50%  { transform:translate(-50%,3px) scale(1.10); }
+    100% { transform:translate(-50%,3px) scale(1); }
+  }
+  /* ★追加：クリック当たり判定（普段は無効、選択中だけ有効） */
+  .player-tag .mini-hand-hit{
+    position:absolute;left:50%;top:100%;
+    transform:translate(-50%,3px);
+    width:66px;height:34px;
+    pointer-events:none;
+    cursor:pointer;
+    background:transparent;
+    border-radius:8px;
+  }
+  .player-tag .mini-hand-hit.active{ pointer-events:auto; }
 
   /* ===== 中央エリア（discardtable / shuffle / table並べ） ===== */
   .center-area{
@@ -745,7 +770,7 @@
   }
   .spirit-card:active{cursor:grabbing;}
 
-/* =========================
+  /* =========================
      ★更新：効果3/4の「自分の手札シャッフル」演出
      ========================= */
   .my-hand.power34-hidden .role-card,
@@ -776,6 +801,72 @@
     transform:translate(var(--tx), var(--ty)) rotate(var(--rot));
   }
 
+  /* =========================
+     ★追加：効果11の「覗き見」表示（自分だけ）
+     ========================= */
+  .peek-overlay{
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:rgba(0,0,0,.18);
+    z-index:610;
+    pointer-events:none;
+  }
+  .peek-overlay.hidden{display:none;}
+  .peek-card{
+    width:96px;
+    height:144px;
+    border-radius:14px;
+    border:1px solid rgba(0,0,0,.22);
+    background:#fff;
+    box-shadow:0 18px 44px rgba(0,0,0,.32);
+    background-size:cover;
+    background-position:center;
+    position:relative;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    box-sizing:border-box;
+    padding:8px;
+  }
+  .peek-label{
+    font-size:12px;
+    font-weight:1000;
+    color:#111;
+    background:rgba(255,255,255,.78);
+    border:1px solid rgba(0,0,0,.12);
+    border-radius:999px;
+    padding:2px 8px;
+    text-shadow:0 1px 0 rgba(255,255,255,.6);
+  }
+
+  /* =========================
+     ★追加：効果11の点線矢印＋👁（全員表示）
+     ========================= */
+  .arrow-layer{
+    position:fixed;
+    inset:0;
+    z-index:590;
+    pointer-events:none;
+  }
+  .arrow-layer.hidden{display:none;}
+
+/* ★追加：ネームタグ左外の🤚🏻マーク */
+.player-tag .handmark{
+  position:absolute;
+  right:100%;              /* タグの外（左側）へ */
+  margin-right:6px;
+  top:50%;
+  transform:translateY(-50%);
+  font-size:16px;
+  line-height:1;
+  pointer-events:none;     /* クリック邪魔しない */
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,.25));
+}
+
+
 </style>
 </head>
 
@@ -802,7 +893,33 @@
   <div id="spiritCard" class="spirit-card" title="霊魂カード">霊魂</div>
 </div>
 
-<!-- ★追加：効果3/4の強制提出時（裏面シャッフル演出） -->
+<!-- ★追加：効果11 覗き見（自分だけ） -->
+<div id="peekOverlay" class="peek-overlay hidden" aria-hidden="true">
+  <div id="peekCard" class="peek-card">
+    <div id="peekLabel" class="peek-label">—</div>
+  </div>
+</div>
+
+<!-- ★追加：効果11 点線矢印＋👁（全員） -->
+<div id="arrowLayer" class="arrow-layer hidden" aria-hidden="true">
+  <svg id="arrowSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arrowHead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L9,3 L0,6 Z" fill="rgba(20,20,20,.92)"></path>
+      </marker>
+    </defs>
+    <line id="arrowLine" x1="0" y1="0" x2="0" y2="0"
+      stroke="rgba(20,20,20,.92)"
+      stroke-width="3"
+      stroke-dasharray="8 7"
+      marker-end="url(#arrowHead)" />
+    <text id="arrowEye" x="0" y="0"
+      font-size="22"
+      text-anchor="middle"
+      dominant-baseline="middle">👁</text>
+  </svg>
+</div>
+
 <main id="main" class="prejoin">
   <div class="join-box" id="joinBox">
     <input id="userName" placeholder="名前（4文字以内）" maxlength="4" />
@@ -893,7 +1010,6 @@
 </div>
 
 <button id="hostSettingsBtn" class="host-settings-btn" title="設定">⚙</button>
-
 <button id="helpBtn" class="help-btn" title="カード効果一覧">？</button>
 
 <div id="helpBackdrop" class="help-pop-backdrop hidden">
@@ -942,7 +1058,7 @@ import {
 
 // ▼ Firebase 設定
 const firebaseConfig = {
-  apiKey: "AIzaSyAMeKfMoHt9qOQ2VuUBpkrKuei7yGBbEi8",
+  apiKey: "AIzaSyAMeKfMoHt9qO2VuUBpkrKuei7yGBbEi8",
   authDomain: "cheesetheft-fd52f.firebaseapp.com",
   databaseURL: "https://cheesetheft-fd52f-default-rtdb.firebaseio.com",
   projectId: "cheesetheft-fd52f",
@@ -1042,8 +1158,16 @@ const tableArea = document.getElementById('tableArea');
 const tableGrid = document.getElementById('tableGrid');
 
 const btnNextRound = document.getElementById('btnNextRound');
-
 const power34ShuffleOverlay = document.getElementById('power34ShuffleOverlay');
+
+/* ★追加：効果11の覗き見UI + 矢印UI */
+const peekOverlay = document.getElementById('peekOverlay');
+const peekCard = document.getElementById('peekCard');
+const peekLabel = document.getElementById('peekLabel');
+const arrowLayer = document.getElementById('arrowLayer');
+const arrowSvg = document.getElementById('arrowSvg');
+const arrowLine = document.getElementById('arrowLine');
+const arrowEye = document.getElementById('arrowEye');
 
 /* =========================
    1〜12の効果
@@ -1051,11 +1175,8 @@ const power34ShuffleOverlay = document.getElementById('power34ShuffleOverlay');
 const POWER_TEXT = {
   1: "カードを持っている人を指名する。\nその人に強制的にカードを出させる。",
   2: "このラウンドに出されたカードは、\nラウンドの最後に誰が何を出したかわかる。",
-  // ★更新：あなたの指定どおり
-  // ownplayer=3 のとき「影響を受けるのは逆の人」。
-  // その「逆の人」のさらに向こう（時計回りに1つ先）が決めた瞬間がトリガー。
-  3: "【手順は場が時計回り】\n自分が3のownplayerのとき、影響を受けるのは「逆の人」。\nその「逆の人」は自分で選べない。\nさらにその向こう（逆の人の時計回りの隣）が「出す／出さない」を決めた1秒後、\n逆の人は手札からランダムに1枚を強制提出する。\n（逆の人の手札が0なら何も起きない）",
-  4: "【手順は場が時計回り】\n自分が4のownplayerのとき、自分が「出す／出さない」を決めた1秒後、\n次（右）のプレイヤーは手札からランダムに1枚を強制提出する。\n（そのプレイヤーの手札が0なら何も起きない）",
+  3: "【手順は場が時計回り】\n自分が3のownplayerのとき、影響を受けるのは「逆の人」。\nその「逆の人」は自分で選べない。\nさらにその向こう（逆の人の時計回りの隣）が「出す／出さない」を決めた瞬間にトリガー。\nトリガーから6秒後、逆の人は手札からランダムに1枚を強制提出する。\n（ただし6秒以内に逆の人が自分の手札を1回でもクリックしたら即実行）\n（逆の人の手札が0なら何も起きない）",
+  4: "【手順は場が時計回り】\n自分が4のownplayerのとき、自分が「出す／出さない」を決めた瞬間にトリガー。\nトリガーから6秒後、次（右）のプレイヤーは手札からランダムに1枚を強制提出する。\n（ただし6秒以内に対象プレイヤーが自分の手札を1回でもクリックしたら即実行）\n（そのプレイヤーの手札が0なら何も起きない）",
   5: "指名した二人は必ず同じ行動を行う。\n（後の人が先の人をまねる。）",
   6: "全員がカードを出し終わった後に、\n自分がカードを出すかどうか決められる。",
   7: "あなたが指名した人は幽魂一枚を得る。",
@@ -1135,6 +1256,8 @@ const ui = {
   tagByUserId: new Map(),
   owncoinByUserId: new Map(),
   playedBackByUserId: new Map(),
+  miniHandByUserId: new Map(),
+  miniHandHitByUserId: new Map(),
 
   coinEl: null,
   ownedCoinDotByOwnerId: new Map(),
@@ -1181,6 +1304,17 @@ function updateHostUI(){
   helpBtn.classList.add('visible');
 }
 
+/* =========================
+   ★ローカル（自分だけ）状態
+   - 効果11完了後に「下の黒ポップ」を消す
+   ========================= */
+let lastRoundSeen = 0;
+let hidePowerPopRound = null;
+let peekTimer = null;
+
+/* =========================
+   購読
+   ========================= */
 function subscribeRoom(){
   const roomRef = ref(db, `rooms/${state.roomCode}`);
   onValue(roomRef, snap => {
@@ -1211,6 +1345,17 @@ function subscribeGame(){
   const gameRef = ref(db, `rooms/${state.roomCode}/game`);
   onValue(gameRef, snap => {
     state.game = snap.val() || {};
+
+    // ★ラウンド更新でローカル状態リセット
+    const r = Number(state.game?.round || 0);
+    if (r && r !== lastRoundSeen){
+      lastRoundSeen = r;
+      hidePowerPopRound = null;
+      if (peekTimer){ clearTimeout(peekTimer); peekTimer = null; }
+      peekOverlay.classList.add('hidden');
+    }
+    renderMyHand();
+
     updateGameUI();
     updatePowerBanner();
     updatePower7UI();
@@ -1218,7 +1363,12 @@ function subscribeGame(){
     renderTableCards();
     renderPlays();
     applyPlayableAnimToMyHand();
-    maybeTriggerPower34AutoPlays();
+
+    // ★追加：効果11矢印（全員）更新
+    renderPower11Arrow();
+    // ★追加：選択モード更新（効果11 / 1 / 12）
+    updateSelectModeUI();
+updateHandmarks(); 
   });
 }
 function subscribePlays(){
@@ -1230,7 +1380,8 @@ function subscribePlays(){
     updatePower7UI();
     maybeHostAdvanceRound();
     applyPlayableAnimToMyHand();
-    // ★追加：効果3/4の監視（トリガー/強制提出）
+
+    // ★効果3/4
     maybeTriggerPower34AutoPlays();
     maybeFinishPower34Shuffle();
   });
@@ -1243,7 +1394,6 @@ function subscribeCoins(){
     renderOwnedCoinsBadges();
     updatePowerBanner();
     updatePower7UI();
-    // ★追加：効果3/4の「選べない」判定（powerDisplayが変わるので）
     applyPlayableAnimToMyHand();
   });
 }
@@ -1263,42 +1413,45 @@ function isEveryoneDecided(){
 }
 
 /* =========================
-   ★効果3/4「選べない」判定（手順は時計回り）
-   - 3: 「逆の人」が選べない（強制提出対象）
-   - 4: 右（次手番）が選べない
+   ★座席ユーティリティ
    ========================= */
- function getSeatIndexByUid(uid){
-    return (state.players || []).find(p => p.id === uid)?.seatIndex ?? null;
-  }
-  function getUidBySeatIndex(seatIndex){
-    return (state.players || []).find(p => p.seatIndex === seatIndex)?.id || null;
-  }
-  function getMaxSeatCount(){
-    const maxPlayers = Number(state.room?.maxPlayers || 0);
-    const playerCount = (state.players || []).length;
-    return maxPlayers > 0 ? maxPlayers : playerCount;
-  }
-  function wrapSeatIndex(seatIndex){
-    const max = getMaxSeatCount();
-    if (!max) return null;
-    const idx = ((seatIndex - 1) % max + max) % max;
-    return idx + 1;
-  }
-  function getRightUid(uid){
-    const seatIndex = getSeatIndexByUid(uid);
-    if (seatIndex == null) return null;
-    const nextSeat = wrapSeatIndex(seatIndex + 1);
-    if (nextSeat == null) return null;
-    return getUidBySeatIndex(nextSeat);
-  }
-  function getLeftUid(uid){
-    const seatIndex = getSeatIndexByUid(uid);
-    if (seatIndex == null) return null;
-    const prevSeat = wrapSeatIndex(seatIndex - 1);
-    if (prevSeat == null) return null;
-    return getUidBySeatIndex(prevSeat);
-  }
+function getSeatIndexByUid(uid){
+  return (state.players || []).find(p => p.id === uid)?.seatIndex ?? null;
+}
+function getUidBySeatIndex(seatIndex){
+  return (state.players || []).find(p => p.seatIndex === seatIndex)?.id || null;
+}
+function getMaxSeatCount(){
+  const maxPlayers = Number(state.room?.maxPlayers || 0);
+  const playerCount = (state.players || []).length;
+  return maxPlayers > 0 ? maxPlayers : playerCount;
+}
+function wrapSeatIndex(seatIndex){
+  const max = getMaxSeatCount();
+  if (!max) return null;
+  const idx = ((seatIndex - 1) % max + max) % max;
+  return idx + 1;
+}
+function getRightUid(uid){
+  const seatIndex = getSeatIndexByUid(uid);
+  if (seatIndex == null) return null;
+  const nextSeat = wrapSeatIndex(seatIndex + 1);
+  if (nextSeat == null) return null;
+  return getUidBySeatIndex(nextSeat);
+}
+function getLeftUid(uid){
+  const seatIndex = getSeatIndexByUid(uid);
+  if (seatIndex == null) return null;
+  const prevSeat = wrapSeatIndex(seatIndex - 1);
+  if (prevSeat == null) return null;
+  return getUidBySeatIndex(prevSeat);
+}
 
+/* =========================
+   ★効果3/4「選べない」判定（手順は時計回り）
+   - 3: forced=左の人（=選べない）
+   - 4: forced=右（次手番）（=選べない）
+   ========================= */
 function getDisabledUidByPower34(){
   const started = !!state.game?.started;
   const phase = state.game?.phase || 'collect';
@@ -1306,8 +1459,6 @@ function getDisabledUidByPower34(){
   if (!started || phase !== 'collect') return null;
   if (!pd || !pd.ownerId) return null;
   const num = Number(pd.number);
-
-  // ★更新：3は「左の人」、4は「右（次手番）」
   if (num === 3) return getLeftUid(pd.ownerId);
   if (num === 4) return getRightUid(pd.ownerId);
   return null;
@@ -1317,21 +1468,306 @@ function isMyPlayLockedByPower34(){
   return !!(disabledUid && disabledUid === state.userId);
 }
 
-  /* =========================
-     ★効果3/4 強制提出トリガー監視（手順は時計回り）
-     - 3: forced=左の人
-          trigger=左の人が決めた瞬間
-     - 4: forced=右（次手番）
-          trigger=owner が決めた瞬間
-     手札0なら何も起きない（passにしない）
-     二重発火防止：rooms/{room}/game/power34
-     ========================= */
+/* =========================
+   ★追加：効果8 / 効果1&12 の「✕カードを非表示」判定
+   - 8: owner（powerDisplay）左右の人（手札が1枚以上ある場合のみ）
+   - 1/12: ownerが選んだ1人（手札が1枚以上ある場合のみ）
+   ========================= */
+function getRoleCount(uid){
+  const hd = state.hands?.[uid];
+  const arr = (hd && Array.isArray(hd.roleCards)) ? hd.roleCards : [];
+  return arr.length;
+}
+function isPassHiddenForUid(uid){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'collect') return false;
+
+  // 手札0なら、✕は必要（詰み防止）なので隠さない
+  if (getRoleCount(uid) <= 0) return false;
+
+  const pd = state.game?.powerDisplay || null;
+
+  // 効果8
+  if (pd && Number(pd.number) === 8 && pd.ownerId){
+    const left = getLeftUid(pd.ownerId);
+    const right = getRightUid(pd.ownerId);
+    if (uid === left || uid === right) return true;
+  }
+
+  // 効果1/12（選ばれた人）
+  const p112 = state.game?.power112 || null;
+  const round = Number(state.game?.round || 0);
+  if (p112 && p112.used && Number(p112.round || 0) === round){
+    if (p112.targetId && p112.targetId === uid) return true;
+  }
+
+  return false;
+}
+
+/* =========================
+   ★効果11 / 効果1&12 の「他プレイヤー手札を選ぶ」モード
+   ========================= */
+function isMyPowerDisplay(number){
+  const pd = state.game?.powerDisplay || null;
+  if (!pd) return false;
+  if (pd.ownerId !== state.userId) return false;
+  return Number(pd.number) === Number(number);
+}
+function isMyPower11Selectable(){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'collect') return false;
+  if (!isMyPowerDisplay(11)) return false;
+  const p11 = state.game?.power11 || null;
+  const round = Number(state.game?.round || 0);
+  if (p11 && p11.used && Number(p11.round || 0) === round && p11.ownerId === state.userId) return false;
+  return true;
+}
+function isMyPower112Selectable(){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'collect') return false;
+  const pd = state.game?.powerDisplay || null;
+  if (!pd || pd.ownerId !== state.userId) return false;
+  const n = Number(pd.number);
+  if (!(n === 1 || n === 12)) return false;
+
+  const p112 = state.game?.power112 || null;
+  const round = Number(state.game?.round || 0);
+  if (p112 && p112.used && Number(p112.round || 0) === round && p112.ownerId === state.userId) return false;
+  return true;
+}
+function isSelectingOtherHandsNow(){
+  return isMyPower11Selectable() || isMyPower112Selectable();
+}
+
+/* ★選択モードUI：ミニ手札のパルス＆当たり判定 */
+function updateSelectModeUI(){
+  const selecting = isSelectingOtherHandsNow();
+
+  for (const p of (state.players || [])){
+    if (p.id === state.userId) continue;
+
+    const miniHand = ui.miniHandByUserId.get(p.id);
+    const hit = ui.miniHandHitByUserId.get(p.id);
+
+    const hasCards = (getRoleCount(p.id) > 0);
+    const enable = selecting && hasCards;
+
+    if (miniHand){
+      miniHand.classList.toggle('selectable', enable);
+    }
+    if (hit){
+      hit.classList.toggle('active', enable);
+    }
+  }
+}
+
+/* ★効果11：覗き見表示 */
+function showPeek(cardName){
+  const url = ASSET.roleFront[cardName] || '';
+  peekCard.style.backgroundImage = url ? `url('${url}')` : '';
+  peekLabel.textContent = cardName || '—';
+  peekOverlay.classList.remove('hidden');
+}
+function hidePeek(){
+  peekOverlay.classList.add('hidden');
+}
+
+/* ★効果11：矢印描画（全員） */
+let arrowRaf = null;
+function stopArrowLoop(){
+  if (arrowRaf){
+    cancelAnimationFrame(arrowRaf);
+    arrowRaf = null;
+  }
+}
+function ensureArrowSvgSize(){
+  // client座標で使うので viewBox をウィンドウサイズに合わせる
+  const w = window.innerWidth || 1;
+  const h = window.innerHeight || 1;
+  arrowSvg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+}
+window.addEventListener('resize', () => { ensureArrowSvgSize(); renderPower11Arrow(); });
+
+function renderPower11Arrow(){
+  ensureArrowSvgSize();
+
+  const p11 = state.game?.power11 || null;
+  const round = Number(state.game?.round || 0);
+  const now = Date.now();
+
+  const active =
+    !!p11 &&
+    !!p11.used &&
+    Number(p11.round || 0) === round &&
+    !!p11.ownerId &&
+    !!p11.toUid &&
+    Number(p11.endsAt || 0) > now;
+
+  if (!active){
+    arrowLayer.classList.add('hidden');
+    stopArrowLoop();
+    return;
+  }
+
+  const fromUid = p11.ownerId;
+  const toUid = p11.toUid;
+
+  arrowLayer.classList.remove('hidden');
+
+  const tick = () => {
+    const p11now = state.game?.power11 || null;
+    const now2 = Date.now();
+    if (!p11now || !p11now.used || Number(p11now.round || 0) !== round || Number(p11now.endsAt || 0) <= now2){
+      arrowLayer.classList.add('hidden');
+      stopArrowLoop();
+      return;
+    }
+
+    const fromTag = ui.tagByUserId.get(fromUid);
+    const toTag = ui.tagByUserId.get(toUid);
+    if (!fromTag || !toTag){
+      arrowLayer.classList.add('hidden');
+      stopArrowLoop();
+      return;
+    }
+
+    const r1 = fromTag.getBoundingClientRect();
+    const r2 = toTag.getBoundingClientRect();
+
+    const x1 = r1.left + r1.width/2;
+    const y1 = r1.top  + r1.height/2;
+    const x2 = r2.left + r2.width/2;
+    const y2 = r2.top  + r2.height/2;
+
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const pad = 28;
+
+    const sx = x1 + (dx/len) * pad;
+    const sy = y1 + (dy/len) * pad;
+    const ex = x2 - (dx/len) * pad;
+    const ey = y2 - (dy/len) * pad;
+
+    arrowLine.setAttribute('x1', String(sx));
+    arrowLine.setAttribute('y1', String(sy));
+    arrowLine.setAttribute('x2', String(ex));
+    arrowLine.setAttribute('y2', String(ey));
+
+    const mx = (sx + ex)/2;
+    const my = (sy + ey)/2;
+    arrowEye.setAttribute('x', String(mx));
+    arrowEye.setAttribute('y', String(my));
+
+    arrowRaf = requestAnimationFrame(tick);
+  };
+
+  if (!arrowRaf){
+    arrowRaf = requestAnimationFrame(tick);
+  }
+}
+
+/* ★共通：他人ミニ手札クリック */
+async function onOtherHandClicked(targetUid){
+  if (!state.roomCode) return;
+  if (targetUid === state.userId) return;
+
+  // 効果11
+  if (isMyPower11Selectable()){
+    // 対象の手札をDBから取得してランダム1枚覗き見（カードは動かさない）
+    const snap = await get(ref(db, `rooms/${state.roomCode}/hands/${targetUid}/roleCards`));
+    const arr0 = snap.val();
+    const arr = Array.isArray(arr0) ? arr0 : [];
+    if (!arr.length) return;
+
+    const pick = arr[Math.floor(Math.random() * arr.length)];
+    const now = Date.now();
+    const round = Number(state.game?.round || 1);
+
+    // power11（矢印）を1回だけ確定
+    await runTransaction(ref(db, `rooms/${state.roomCode}/game/power11`), (cur) => {
+      const pd = state.game?.powerDisplay || null;
+      if (!pd || pd.ownerId !== state.userId || Number(pd.number) !== 11) return cur || null;
+
+      const c = cur || {};
+      if (c.used && Number(c.round || 0) === round && c.ownerId === state.userId) return c;
+
+      return {
+        round,
+        ownerId: state.userId,
+        toUid: targetUid,
+        used: true,
+        shownAt: now,
+        endsAt: now + 4000
+      };
+    });
+
+    // 自分だけ中央に4秒表示
+    showPeek(pick);
+    if (peekTimer){ clearTimeout(peekTimer); }
+    peekTimer = setTimeout(() => {
+      peekTimer = null;
+      hidePeek();
+
+      // ★指定：この処理の後「下の説明黒ポップ」を消す
+      hidePowerPopRound = Number(state.game?.round || 0);
+      renderMyHand(); // すぐ反映
+    }, 4000);
+
+    updateSelectModeUI();
+    renderPower11Arrow();
+    return;
+  }
+
+  // 効果1 / 12
+  if (isMyPower112Selectable()){
+    const pd = state.game?.powerDisplay || null;
+    const now = Date.now();
+    const round = Number(state.game?.round || 1);
+
+    // 対象が手札を持っているか（厳密にDBで確認）
+    const snap = await get(ref(db, `rooms/${state.roomCode}/hands/${targetUid}/roleCards`));
+    const arr0 = snap.val();
+    const arr = Array.isArray(arr0) ? arr0 : [];
+    if (!arr.length) return;
+
+    await runTransaction(ref(db, `rooms/${state.roomCode}/game/power112`), (cur) => {
+      const pdNow = state.game?.powerDisplay || null;
+      if (!pdNow || pdNow.ownerId !== state.userId) return cur || null;
+      const n = Number(pdNow.number);
+      if (!(n === 1 || n === 12)) return cur || null;
+
+      const c = cur || {};
+      if (c.used && Number(c.round || 0) === round && c.ownerId === state.userId) return c;
+
+      return {
+        round,
+        ownerId: state.userId,
+        number: Number(pdNow.number),
+        targetId: targetUid,
+        used: true,
+        chosenAt: now
+      };
+    });
+
+    updateSelectModeUI();
+    renderMyHand(); // 自分画面の表示は変わらないが、タイミング的に呼ぶ
+    return;
+  }
+}
+
+/* =========================
+   ★効果3/4 強制提出（6秒待機＋対象クリックで即実行）
+   （ここから下はユーザーコードを維持しつつ、そのまま）
+   ========================= */
 let power34ShuffleActive = false;
 let power34ShuffleCleanupTimer = null;
 let lastPower34AnimAt = 0;
 let power34WaitTimer = null;
 let power34WaitKey = null;
-const POWER34_TRIGGER_DELAY_MS = 6000;
 
 function clearPower34WaitTimer(){
   if (power34WaitTimer){
@@ -1400,152 +1836,279 @@ function endPower34ShuffleAnim(){
   }, 520);
 }
 
-async function registerPower34ForcedClick(){
-  if (!state.roomCode) return;
-
+/** ★現在の power34 文脈（実行判定に必要な情報を一箇所で算出） */
+function getPower34Context(){
   const started = !!state.game?.started;
   const phase = state.game?.phase || 'collect';
-  if (!started || phase !== 'collect') return;
+  if (!started || phase !== 'collect') return null;
 
   const pd = state.game?.powerDisplay || null;
-  if (!pd || !pd.ownerId) return;
+  if (!pd || !pd.ownerId) return null;
 
   const num = Number(pd.number);
-  if (num !== 3 && num !== 4) return;
+  if (num !== 3 && num !== 4) return null;
 
   const round = Number(state.game?.round || 1);
-  const base = `rooms/${state.roomCode}`;
-  const forcedUid = (num === 3) ? getLeftUid(pd.ownerId) : getRightUid(pd.ownerId);
-  if (!forcedUid || forcedUid !== state.userId) return;
+  const ownerId = pd.ownerId;
 
-  const triggerUid = (num === 3) ? getLeftUid(forcedUid) : pd.ownerId;
-  if (!triggerUid) return;
+  const forcedUid = (num === 3) ? getLeftUid(ownerId) : getRightUid(ownerId);
+  if (!forcedUid) return null;
+
+  const triggerUid = (num === 3) ? getLeftUid(forcedUid) : ownerId;
+  if (!triggerUid) return null;
 
   const triggerPlay = state.plays?.[triggerUid] || null;
-  const triggerAt = Number(triggerPlay?.playedAt || 0);
-  if (!triggerAt) return;
+  if (!triggerPlay) return null;
 
+  const triggerAt = Number(triggerPlay.playedAt || 0);
+  if (!triggerAt) return null;
+
+  const scheduledAt = triggerAt + 6000;
+
+  return { round, ownerId, num, forcedUid, triggerUid, triggerAt, scheduledAt };
+}
+
+/** ★対象プレイヤーが「自分の手札を1回クリック」した印（DBに残して全端末で即実行へ） */
+async function markPower34ForcedClicked(){
+  if (!state.roomCode) return;
+  const ctx = getPower34Context();
+  if (!ctx) return;
+  if (ctx.forcedUid !== state.userId) return;
+  if (state.plays?.[ctx.forcedUid]) return;
+
+  const base = `rooms/${state.roomCode}`;
   const p34Ref = ref(db, `${base}/game/power34`);
+  const now = Date.now();
+
   await runTransaction(p34Ref, (cur) => {
     const c = cur || {};
-    if (c.round !== round || c.ownerId !== pd.ownerId || Number(c.number) !== num){
+    const same =
+      c.round === ctx.round &&
+      c.ownerId === ctx.ownerId &&
+      Number(c.number) === ctx.num &&
+      c.triggerUid === ctx.triggerUid &&
+      c.forcedUid === ctx.forcedUid &&
+      Number(c.triggerAt) === ctx.triggerAt;
+
+    if (!same){
       return {
-        round,
-        ownerId: pd.ownerId,
-        number: num,
-        triggerUid,
-        forcedUid,
-        triggerAt,
+        round: ctx.round,
+        ownerId: ctx.ownerId,
+        number: ctx.num,
+        triggerUid: ctx.triggerUid,
+        forcedUid: ctx.forcedUid,
+        triggerAt: ctx.triggerAt,
+        scheduledAt: ctx.scheduledAt,
+        clickedAt: now,
         done: false,
         claimedBy: null,
         claimedAt: null,
-        clickedBy: state.userId,
-        clickedAt: Date.now()
+        animAt: null,
+        forcedCard: null,
+        result: null
       };
     }
 
     if (c.done) return c;
-    if (c.triggerUid !== triggerUid || c.forcedUid !== forcedUid || Number(c.triggerAt) !== triggerAt){
-      return {
-        round,
-        ownerId: pd.ownerId,
-        number: num,
-        triggerUid,
-        forcedUid,
-        triggerAt,
-        done: false,
-        claimedBy: null,
-        claimedAt: null,
-        clickedBy: state.userId,
-        clickedAt: Date.now()
-      };
-    }
-
-    if (!c.clickedAt){
-      c.clickedBy = state.userId;
-      c.clickedAt = Date.now();
-    }
+    if (c.clickedAt) return c;
+    c.clickedAt = now;
     return c;
   });
+
+  // クリックを付けたら即時判定（実行へ）
+  maybeTriggerPower34AutoPlays();
 }
 
+/** ★実行本体（安全側：失敗時の復旧も行う） */
+async function executePower34Now(ctx){
+  const base = `rooms/${state.roomCode}`;
+  const p34Ref = ref(db, `${base}/game/power34`);
+
+  // すでに提出済みなら終了
+  const already = (await get(ref(db, `${base}/plays/${ctx.forcedUid}`))).val();
+  if (already){
+    await update(p34Ref, { done:true, doneAt: Date.now(), result:'already_played' });
+    return;
+  }
+
+  const handRef = ref(db, `${base}/hands/${ctx.forcedUid}/roleCards`);
+  const handSnap = await get(handRef);
+  const roleCards0 = handSnap.val();
+  let roleCards = Array.isArray(roleCards0) ? [...roleCards0] : [];
+  if (!roleCards.length){
+    await update(p34Ref, { done:true, doneAt: Date.now(), result:'nohand' });
+    return;
+  }
+
+  // p34側に forcedCard が既にあれば優先（不一致ならランダム）
+  const p34Now = (await get(p34Ref)).val() || {};
+  let pick = (p34Now.forcedCard && roleCards.includes(p34Now.forcedCard)) ? p34Now.forcedCard : null;
+  if (!pick){
+    pick = roleCards[Math.floor(Math.random() * roleCards.length)];
+  }
+
+  // animAt / forcedCard を確定（複数端末でも最初のものを尊重）
+  await runTransaction(p34Ref, (cur) => {
+    const c = cur || {};
+    if (c.done) return c;
+    if (!c.forcedCard) c.forcedCard = pick;
+    if (!c.animAt) c.animAt = Date.now();
+    return c;
+  });
+
+  // ★削除はトランザクション（2回だけ安全リトライ）
+  let removed = false;
+  let finalPick = pick;
+
+  for (let attempt=0; attempt<2; attempt++){
+    const tx = await runTransaction(handRef, (current) => {
+      const arr = Array.isArray(current) ? [...current] : [];
+      const idx = arr.indexOf(finalPick);
+      if (idx === -1) return; // 失敗 → committed=false
+      arr.splice(idx, 1);
+      return arr;
+    });
+
+    if (tx.committed){
+      removed = true;
+      break;
+    }
+
+    // 失敗したら最新手札で選び直し（手札消滅を避ける）
+    const hs = await get(handRef);
+    const a0 = hs.val();
+    const a = Array.isArray(a0) ? [...a0] : [];
+    if (!a.length){
+      await update(p34Ref, { done:true, doneAt: Date.now(), result:'nohand' });
+      return;
+    }
+    finalPick = a[Math.floor(Math.random() * a.length)];
+    await runTransaction(p34Ref, (cur) => {
+      const c = cur || {};
+      if (c.done) return c;
+      if (!c.forcedCard) c.forcedCard = finalPick;
+      return c;
+    });
+  }
+
+  if (!removed){
+    await update(p34Ref, { done:true, doneAt: Date.now(), result:'fail_remove' });
+    return;
+  }
+
+  // plays にセット（失敗したら手札へ戻す＝消滅防止）
+  const forcedSeat = (state.players || []).find(p => p.id === ctx.forcedUid)?.seatIndex || 0;
+
+  try{
+    await set(ref(db, `${base}/plays/${ctx.forcedUid}`), {
+      kind: 'role',
+      card: finalPick,
+      seatIndex: forcedSeat,
+      playedAt: Date.now(),
+      forcedBy: 'power34',
+      forcedFrom: ctx.num
+    });
+  } catch (e){
+    // 復旧：手札へ戻す（重複防止のため存在チェックしてからpush）
+    await runTransaction(handRef, (current) => {
+      const arr = Array.isArray(current) ? [...current] : [];
+      if (!arr.includes(finalPick)) arr.push(finalPick);
+      return arr;
+    });
+    await update(p34Ref, { done:true, doneAt: Date.now(), result:'fail_setplay_restore' });
+    return;
+  }
+
+  await update(p34Ref, { done:true, doneAt: Date.now(), result:'ok', forcedCard: finalPick });
+}
+
+/** ★監視：条件を満たしたら（6秒経過 or clickedAt）1回だけ claim して実行 */
 async function maybeTriggerPower34AutoPlays(){
   if (!state.roomCode) return;
 
-
-  const started = !!state.game?.started;
-  const phase = state.game?.phase || 'collect';
-  if (!started || phase !== 'collect'){
+  const ctx = getPower34Context();
+  if (!ctx){
     clearPower34WaitTimer();
     return;
   }
 
-  const pd = state.game?.powerDisplay || null;
-  if (!pd || !pd.ownerId){
+  // forcedが既に提出してるなら不要
+  if (state.plays?.[ctx.forcedUid]){
     clearPower34WaitTimer();
     return;
   }
 
-  const num = Number(pd.number);
-  if (num !== 3 && num !== 4){
-    clearPower34WaitTimer();
-    return;
-  }
-
-  const round = Number(state.game?.round || 1);
   const base = `rooms/${state.roomCode}`;
+  const p34Ref = ref(db, `${base}/game/power34`);
 
-  // ★更新：num=3は「左」、num=4は「右（次手番）」
-  const forcedUid = (num === 3) ? getLeftUid(pd.ownerId) : getRightUid(pd.ownerId);
+  // ★p34 文脈を整備（ズレてたら作り直す）
+  await runTransaction(p34Ref, (cur) => {
+    const c = cur || {};
+    const same =
+      c.round === ctx.round &&
+      c.ownerId === ctx.ownerId &&
+      Number(c.number) === ctx.num &&
+      c.triggerUid === ctx.triggerUid &&
+      c.forcedUid === ctx.forcedUid &&
+      Number(c.triggerAt) === ctx.triggerAt;
 
-  if (!forcedUid){
+    if (!same){
+      return {
+        round: ctx.round,
+        ownerId: ctx.ownerId,
+        number: ctx.num,
+        triggerUid: ctx.triggerUid,
+        forcedUid: ctx.forcedUid,
+        triggerAt: ctx.triggerAt,
+        scheduledAt: ctx.scheduledAt,
+        clickedAt: null,
+        done: false,
+        claimedBy: null,
+        claimedAt: null,
+        animAt: null,
+        forcedCard: null,
+        result: null
+      };
+    }
+
+    // scheduledAt が無い/変なら補正
+    if (!c.scheduledAt || Number(c.scheduledAt) !== ctx.scheduledAt){
+      c.scheduledAt = ctx.scheduledAt;
+    }
+    return c;
+  });
+
+  const snap = await get(p34Ref);
+  const p34 = snap.val() || null;
+  if (!p34){
     clearPower34WaitTimer();
     return;
   }
 
-  const triggerUid = (num === 3) ? getLeftUid(forcedUid) : pd.ownerId;
-
-  if (!triggerUid){
+  if (p34.done){
     clearPower34WaitTimer();
     return;
   }
 
-  // すでに forcedUid が提出してたら不要
-  if (state.plays?.[forcedUid]){
-    clearPower34WaitTimer();
-    return;
-  }
-
-  const triggerPlay = state.plays?.[triggerUid] || null;
-  if (!triggerPlay){
-    clearPower34WaitTimer();
-    return;
-  }
-
-  // triggerPlay の 6秒後に実行（ただし1回だけ）
-  const triggerAt = Number(triggerPlay.playedAt || 0);
-  if (!triggerAt){
+  // すでに提出されていたらdoneにして終了
+  const playsNow = (await get(ref(db, `${base}/plays/${ctx.forcedUid}`))).val();
+  if (playsNow){
+    await update(p34Ref, { done:true, doneAt: Date.now(), result:'already_played' });
     clearPower34WaitTimer();
     return;
   }
 
   const now = Date.now();
+  const scheduledAt = Number(p34.scheduledAt || ctx.scheduledAt);
+  const clickedAt = Number(p34.clickedAt || 0);
 
-  const p34State = state.game?.power34 || null;
-  const hasForcedClick = !!(
-    p34State &&
-    p34State.clickedAt &&
-    p34State.triggerUid === triggerUid &&
-    p34State.forcedUid === forcedUid &&
-    Number(p34State.triggerAt) === triggerAt &&
-    Number(p34State.number) === num &&
-    p34State.ownerId === pd.ownerId
-  );
+  const readyByTime = now >= scheduledAt;
+  const readyByClick = !!clickedAt && clickedAt >= ctx.triggerAt;
 
-  // 6秒未満なら「残り時間後に必ず再チェック」
-  if (!hasForcedClick && now - triggerAt < POWER34_TRIGGER_DELAY_MS){
-    const remain = POWER34_TRIGGER_DELAY_MS - (now - triggerAt);
-    const key = `${round}|${num}|${pd.ownerId}|${triggerUid}|${forcedUid}|${triggerAt}`;
+  if (!readyByTime && !readyByClick){
+    // ★まだ待機 → scheduledAt で起動
+    const remain = Math.max(0, scheduledAt - now);
+    const key = `${ctx.round}|${ctx.num}|${ctx.ownerId}|${ctx.triggerUid}|${ctx.forcedUid}|${ctx.triggerAt}|${scheduledAt}`;
     if (power34WaitKey !== key){
       clearPower34WaitTimer();
       power34WaitKey = key;
@@ -1560,98 +2123,29 @@ async function maybeTriggerPower34AutoPlays(){
     clearPower34WaitTimer();
   }
 
-  const p34Ref = ref(db, `${base}/game/power34`);
-
+  // ★claim（ready条件を満たした時だけ）
   const claim = await runTransaction(p34Ref, (cur) => {
     const c = cur || {};
-    if (c.round !== round || c.ownerId !== pd.ownerId || Number(c.number) !== num){
-      return {
-        round,
-        ownerId: pd.ownerId,
-        number: num,
-        triggerUid,
-        forcedUid,
-        triggerAt,
-        done: false,
-        claimedBy: null,
-        claimedAt: null
-      };
-    }
-
     if (c.done) return c;
 
-    if (c.triggerUid !== triggerUid || c.forcedUid !== forcedUid || Number(c.triggerAt) !== triggerAt){
-      return {
-        round,
-        ownerId: pd.ownerId,
-        number: num,
-        triggerUid,
-        forcedUid,
-        triggerAt,
-        done:false,
-        claimedBy:null,
-        claimedAt:null
-      };
-    }
+    const sAt = Number(c.scheduledAt || ctx.scheduledAt);
+    const cAt = Number(c.clickedAt || 0);
+    const ready = (Date.now() >= sAt) || (!!cAt && cAt >= ctx.triggerAt);
+    if (!ready) return c;
 
     if (c.claimedBy) return c;
 
     c.claimedBy = state.userId;
     c.claimedAt = Date.now();
+    c.execReason = (Date.now() >= sAt) ? 'time' : 'click';
     return c;
   });
 
-  const p34 = claim.snapshot.val() || null;
-  if (!claim.committed || !p34) return;
+  const claimed = claim.snapshot.val() || null;
+  if (!claim.committed || !claimed) return;
+  if (claimed.claimedBy !== state.userId) return;
 
-  if (p34.claimedBy !== state.userId) return;
-
-  const playsSnap = await get(ref(db, `${base}/plays`));
-  const playsNow = playsSnap.val() || {};
-  if (playsNow[forcedUid]){
-    await update(p34Ref, { done:true, doneAt: Date.now() });
-    return;
-  }
-
-  // forcedUid の手札からランダムで1枚
-  const handSnap = await get(ref(db, `${base}/hands/${forcedUid}/roleCards`));
-  const arr = handSnap.val();
-  const roleCards = Array.isArray(arr) ? [...arr] : [];
-  if (!roleCards.length){
-    // ★仕様：手札0なら「何も起きない」
-    await update(p34Ref, { done:true, doneAt: Date.now(), result:'nohand' });
-    return;
-  }
-
-  const pick = roleCards[Math.floor(Math.random() * roleCards.length)];
-
-  await update(p34Ref, { animAt: Date.now() });
-
-  const okTx = await runTransaction(ref(db, `${base}/hands/${forcedUid}/roleCards`), (current) => {
-    const a = Array.isArray(current) ? [...current] : [];
-    const idx = a.indexOf(pick);
-    if (idx === -1) return;
-    a.splice(idx, 1);
-    return a;
-  });
-
-  if (!okTx.committed){
-    await update(p34Ref, { done:true, doneAt: Date.now(), result:'fail_remove' });
-    return;
-  }
-
-  const forcedSeat = (state.players || []).find(p => p.id === forcedUid)?.seatIndex || 0;
-
-  await set(ref(db, `${base}/plays/${forcedUid}`), {
-    kind: 'role',
-    card: pick,
-    seatIndex: forcedSeat,
-    playedAt: Date.now(),
-    forcedBy: 'power34',
-    forcedFrom: num
-  });
-
-  await update(p34Ref, { done:true, doneAt: Date.now(), result:'ok', forcedCard: pick });
+  await executePower34Now(ctx);
 }
 
 /* ★ power34.animAt を購読して演出表示 */
@@ -1663,15 +2157,15 @@ function subscribePower34Anim(){
     const started = !!state.game?.started;
     const phase = state.game?.phase || 'collect';
     if (!started || phase !== 'collect') return;
+
     if (v.animAt && typeof v.animAt === 'number' && v.forcedUid === state.userId){
-      if (v.animAt > lastPower34AnimAt && Date.now() - v.animAt < 2000){
+      if (v.animAt > lastPower34AnimAt && Date.now() - v.animAt < 3000){
         lastPower34AnimAt = v.animAt;
         startPower34ShuffleAnim();
       }
     }
   });
 }
-
 function maybeFinishPower34Shuffle(){
   if (!power34ShuffleActive) return;
   const play = state.plays?.[state.userId];
@@ -1680,7 +2174,6 @@ function maybeFinishPower34Shuffle(){
     endPower34ShuffleAnim();
   }
 }
-
 
 /* =========================
    ★プレイ可能な手札なら大小アニメ
@@ -1731,6 +2224,14 @@ function updateGameUI(){
   btnNextRound.classList.toggle('visible', !!(started && state.isHost && (phase === 'table' || phase === 'reveal2')));
 
   applyPlayableAnimToMyHand();
+
+  if (started){
+    requestAnimationFrame(() => {
+      renderCoins();
+      renderOwnedCoinsBadges();
+    });
+  }
+
 }
 
 function renderHands(){
@@ -1742,6 +2243,8 @@ function renderHands(){
   renderDiscardTable();
   renderTableCards();
   updatePower7UI();
+  updateSelectModeUI();
+  renderPower11Arrow();
 }
 
 function renderMyHand(){
@@ -1769,25 +2272,43 @@ function renderMyHand(){
       card.appendChild(face);
       card.appendChild(label);
 
-      card.addEventListener('pointerdown', (e) => {
-        registerPower34ForcedClick();
-        startDragCard(e, { kind:'role', cardName:name });
+      // ★既存：ドラッグ提出
+      card.addEventListener('pointerdown', (e) => startDragCard(e, { kind:'role', cardName:name }));
+
+      // ★追加（最小）：power34対象プレイヤーが「自分の手札を1回クリック」→即実行
+      card.addEventListener('click', (e) => {
+        if (!state.game?.started) return;
+        const ctx = getPower34Context();
+        if (!ctx) return;
+        if (ctx.forcedUid !== state.userId) return; // 対象以外は無関係
+        if (state.plays?.[state.userId]) return;
+        markPower34ForcedClicked();
       });
+
       myHandEl.appendChild(card);
     });
 
-    const pass = document.createElement('div');
-    pass.className = 'pass-card';
-    pass.dataset.pass = "1";
-    pass.innerHTML = `<div class="label">出さない</div>`;
-    pass.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      await setMyPlay({ kind:'pass' });
-    });
-    myHandEl.appendChild(pass);
+    // ★出さない（✕）カード：効果8 / 効果1&12 で「非表示」になる
+    const passShouldShow = !isPassHiddenForUid(myId);
+
+    if (passShouldShow){
+      const pass = document.createElement('div');
+      pass.className = 'pass-card';
+      pass.dataset.pass = "1";
+      pass.innerHTML = `<div class="label">出さない</div>`;
+      pass.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await setMyPlay({ kind:'pass' });
+      });
+      myHandEl.appendChild(pass);
+    }
   }
 
-  if (started && handData && handData.numberCard) {
+  // ★下の黒ポップ（powerWrapper）は、効果11完了後はそのラウンドだけ消す
+  const myRound = Number(state.game?.round || 0);
+  const shouldHidePowerPop = (hidePowerPopRound != null && hidePowerPopRound === myRound);
+
+  if (started && handData && handData.numberCard && !shouldHidePowerPop) {
     const n = Number(handData.numberCard);
     powerWrapper.style.display = '';
     powerCardEl.textContent = String(n);
@@ -2004,17 +2525,114 @@ function subscribePlayers(){
     renderOwnedCoinsBadges();
     updatePowerBanner();
     updatePower7UI();
+    renderMyHand();
 
     maybeHostAdvanceRound();
     applyPlayableAnimToMyHand();
+
+    // ★追加
+    updateSelectModeUI();
+    renderPower11Arrow();
   });
 }
+
+/* =========================
+   ★追加：初回配布役職の「相互🤚🏻表示」
+   - 見える人：白薔薇/司教/大刃/双刃 を持つ人だけ
+   - 表示対象：上記4役の “自分以外” のネームタグ
+   - 位置：ネームタグ左外
+   ========================= */
+const HANDMARK_GROUP = new Set(["白薔薇","司教","大刃","双刃"]);
+
+function getStartRoleUids(roleName){
+  const sr = state.game?.startRoles?.roleToUids || null;
+  const arr = sr ? sr[roleName] : null;
+  return Array.isArray(arr) ? arr : [];
+}
+function isUidInHandmarkGroup(uid){
+  for (const r of HANDMARK_GROUP){
+    if (getStartRoleUids(r).includes(uid)) return true;
+  }
+  return false;
+}
+
+function updateHandmarks(){
+  // いったん全員の🤚🏻を消す
+  for (const [uid, tag] of ui.tagByUserId.entries()){
+    const old = tag.querySelector('.handmark');
+    if (old) old.remove();
+  }
+
+  // ゲーム未開始 / 初回配布情報なし → 何もしない
+  if (!state.game?.started) return;
+  if (!state.game?.startRoles?.roleToUids) return;
+
+  const me = state.userId;
+  const roleToUids = state.game.startRoles.roleToUids;
+
+  // =========================
+  // ★追加：ownplayer(=powerDisplay) が 9 のとき
+  // 暗刃プレイヤーだけが、白薔薇＆司教のタグ左に🤚🏻を付けて見える
+  // =========================
+  const phase = state.game?.phase || 'collect';
+  const pd = state.game?.powerDisplay || null;
+  const power9Active = (phase === 'collect') && !!pd && (Number(pd.number) === 9);
+
+  const anjinUids = Array.isArray(roleToUids["暗刃"]) ? roleToUids["暗刃"] : [];
+  const isMeAnjin = anjinUids.includes(me);
+
+  if (power9Active && isMeAnjin){
+    const roseUids = Array.isArray(roleToUids["白薔薇"]) ? roleToUids["白薔薇"] : [];
+    const bishopUids = Array.isArray(roleToUids["司教"]) ? roleToUids["司教"] : [];
+
+    const targets = new Set([...roseUids, ...bishopUids]);
+    targets.delete(me);
+
+    for (const uid of targets){
+      const tag = ui.tagByUserId.get(uid);
+      if (!tag) continue;
+      if (tag.querySelector('.handmark')) continue; // 念のため二重防止
+
+      const mark = document.createElement('span');
+      mark.className = 'handmark';
+      mark.textContent = '🤚🏻';
+      tag.appendChild(mark);
+    }
+  }
+
+  // =========================
+  // 既存：初回配布役職の「相互🤚🏻表示」
+  // （白薔薇/司教/大刃/双刃を持つ人だけが、同グループの他人に🤚🏻）
+  // =========================
+
+  // 自分がグループ外なら見えない（誰にも付けない）
+  if (!isUidInHandmarkGroup(me)) return;
+
+  // グループ内の「自分以外」のタグ左外に🤚🏻
+  for (const p of (state.players || [])){
+    if (!p || !p.id) continue;
+    if (p.id === me) continue;
+    if (!isUidInHandmarkGroup(p.id)) continue;
+
+    const tag = ui.tagByUserId.get(p.id);
+    if (!tag) continue;
+    if (tag.querySelector('.handmark')) continue; // ★追加：二重防止（効果9と競合しない）
+
+    const mark = document.createElement('span');
+    mark.className = 'handmark';
+    mark.textContent = '🤚🏻';
+    tag.appendChild(mark);
+  }
+}
+
 
 function renderPlayerCircle(players){
   playerCircle.querySelectorAll('.player-node').forEach(el => el.remove());
   ui.nodeByUserId.clear();
   ui.tagByUserId.clear();
   ui.owncoinByUserId.clear();
+  ui.miniHandByUserId.clear();
+  ui.miniHandHitByUserId.clear();
 
   if (!players.length) return;
 
@@ -2048,6 +2666,9 @@ function renderPlayerCircle(players){
     ownedCoins.className = 'owned-coins';
 
     node.addEventListener('click', () => {
+      // ★選択中（効果11/1/12）は座席奪取クリックを無効化
+      if (isSelectingOtherHandsNow()) return;
+
       if (p.id === state.userId) return;
       if (!state.roomCode) return;
       if (state.seatedTable !== null) return;
@@ -2060,6 +2681,7 @@ function renderPlayerCircle(players){
 
     const handData = state.hands[p.id];
     const roleCount = (handData && Array.isArray(handData.roleCards)) ? handData.roleCards.length : 0;
+
     if (p.id !== state.userId && roleCount > 0){
       const miniHand = document.createElement('div');
       miniHand.className = 'mini-hand';
@@ -2079,6 +2701,19 @@ function renderPlayerCircle(players){
         miniHand.appendChild(c);
       }
       tag.appendChild(miniHand);
+
+      // ★追加：クリック当たり判定（選択中だけ有効）
+      const hit = document.createElement('div');
+      hit.className = 'mini-hand-hit';
+      hit.title = '手札を選択';
+      hit.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onOtherHandClicked(p.id);
+      });
+      tag.appendChild(hit);
+
+      ui.miniHandByUserId.set(p.id, miniHand);
+      ui.miniHandHitByUserId.set(p.id, hit);
     }
 
     node.appendChild(owncoin);
@@ -2092,6 +2727,8 @@ function renderPlayerCircle(players){
   });
 
   renderOwnedCoinsBadges();
+  updateSelectModeUI();
+  updateHandmarks();
 }
 
 /* =========================
@@ -2210,7 +2847,7 @@ function buildRoleHandsForPlayers(playerIds){
   const basePatterns = [
     ["白薔薇","信者","霊魂"],
     ["双刃","双刃","信者"],
-    ["信者","信者","霊魂"],
+    ["司教","信者","霊魂"],
     ["暗刃","信者","霊魂"],
   ];
 
@@ -2282,6 +2919,22 @@ async function startGameDeal(){
   const discard = { rose: [], blade: [], alive: [], dead: [] };
 
   const base = `rooms/${state.roomCode}`;
+
+  const roleToUids = { "白薔薇":[], "司教":[], "大刃":[], "双刃":[], "暗刃":[] };
+
+  for (const uid of playerIds){
+    const cards = (hands[uid]?.roleCards && Array.isArray(hands[uid].roleCards)) ? hands[uid].roleCards : [];
+
+    if (cards.includes("白薔薇")) roleToUids["白薔薇"].push(uid);
+    if (cards.includes("司教"))   roleToUids["司教"].push(uid);
+    if (cards.includes("双刃"))   roleToUids["双刃"].push(uid);
+    if (cards.includes("暗刃"))   roleToUids["暗刃"].push(uid);
+
+    // 大刃（巨刃/大刃どちらでも）
+    if (cards.includes("大刃") || cards.includes("巨刃")) roleToUids["大刃"].push(uid);
+  }
+
+
   await Promise.all([
     set(ref(db, `${base}/hands`), hands),
     set(ref(db, `${base}/plays`), null),
@@ -2294,10 +2947,14 @@ async function startGameDeal(){
       powerDisplay: null,
       power7: null,
       power34: null,
+      power11: null,   // ★追加
+      power112: null,  // ★追加
       tableList: null,
       waitStartedAt: null,
       shuffleStartedAt: null,
-      startedAt: Date.now()
+      startedAt: Date.now(),
+      startRoles: { roleToUids, decidedAt: Date.now() },
+
     })
   ]);
 }
@@ -2342,7 +2999,6 @@ function renderPlayedMarkers(){
   const phase = state.game?.phase || 'collect';
   const isShuffle = started && phase === 'shuffle';
   const isReveal2 = started && phase === 'reveal2';
-
   const isTable = started && phase === 'table';
 
   for (const [uid, el] of ui.playedBackByUserId){
@@ -2361,7 +3017,6 @@ function renderPlayedMarkers(){
   const shuffleY = discardRect.top + discardRect.height/2;
 
   for (const uid of Object.keys(plays)){
-
     const p = plays[uid];
     if (!p) continue;
 
@@ -2422,7 +3077,7 @@ function renderPlayedMarkers(){
     marker.style.left = `${x}px`;
     marker.style.top  = `${y}px`;
 
- if (isShuffle){
+    if (isShuffle){
       setShuffleVars(marker, uid);
       marker.classList.add('shuffling');
       marker.style.left = `${shuffleX}px`;
@@ -2434,24 +3089,15 @@ function renderPlayedMarkers(){
     }
 
     if (p.kind === 'pass'){
-      if (isShuffle){
-        marker.style.transform = 'translate(-50%,-50%)';
-      } else {
-        marker.style.transform = `translate(-50%,-50%)` + (isReveal2 ? ' scale(0.7)' : '');
-      }
+      marker.style.transform = 'translate(-50%,-50%)' + (isReveal2 ? ' scale(0.7)' : '');
     } else if (isReveal2){
       marker.style.backgroundImage = `url('${ASSET.roleFront[p.card] || ''}')`;
       marker.style.transform = `translate(-50%,-50%) scale(0.7)`;
     } else {
-      if (isShuffle){
-        marker.style.transform = 'translate(-50%,-50%)';
-      } else {
-        marker.style.transform = `translate(-50%,-50%) rotate(${(p.seatIndex||0)*3}deg)`;
-      }
+      marker.style.transform = isShuffle ? 'translate(-50%,-50%)' : `translate(-50%,-50%) rotate(${(p.seatIndex||0)*3}deg)`;
     }
   }
 }
-
 
 /* =========================
    ★全員提出後：3秒 → shuffle → table
@@ -2762,6 +3408,8 @@ btnNextRound.addEventListener('click', async () => {
       powerDisplay: null,
       power7: null,
       power34: null,
+      power11: null,   // ★追加
+      power112: null,  // ★追加
       tableList: null,
       waitStartedAt: null,
       shuffleStartedAt: null
@@ -2995,6 +3643,8 @@ async function setPowerDisplayForOwner(ownerId){
   await ensurePower7StateIfNeeded(ownerId, Number(number ?? null));
 
   applyPlayableAnimToMyHand();
+  updateSelectModeUI();
+  renderPower11Arrow();
 }
 
 function renderCoins(){
@@ -3317,7 +3967,7 @@ function startDragSpirit(e){
 spiritCard.addEventListener('pointerdown', startDragSpirit);
 
 /* =========================
-   ホスト設定UI
+   ホスト設定UI（既存）
    ========================= */
 hostSettingsBtn.addEventListener('click', () => {
   if (!state.isHost) return;
@@ -3326,45 +3976,49 @@ hostSettingsBtn.addEventListener('click', () => {
 btnStartPopClose.addEventListener('click', () => {
   startPop.classList.add('hidden');
 });
-
 btnGameStart.addEventListener('click', async () => {
   if (!state.isHost) return;
   await startGameDeal();
   startPop.classList.add('hidden');
 });
 
+/* ★リセット：人数選択へ戻す（最小実装） */
 btnResetRoom.addEventListener('click', async () => {
   if (!state.isHost || !state.roomCode) return;
 
   const base = `rooms/${state.roomCode}`;
+
   await Promise.all([
-    remove(ref(db, `${base}/maxPlayers`)),
-    remove(ref(db, `${base}/tables`)),
-    remove(ref(db, `${base}/hands`)),
-    remove(ref(db, `${base}/plays`)),
-    remove(ref(db, `${base}/game`)),
-    remove(ref(db, `${base}/coins`)),
-    remove(ref(db, `${base}/discard`)),
+    update(ref(db, `${base}`), { maxPlayers: null }),
+    set(ref(db, `${base}/tables`), null),
+    set(ref(db, `${base}/hands`), null),
+    set(ref(db, `${base}/plays`), null),
+    set(ref(db, `${base}/coins`), null),
+    set(ref(db, `${base}/discard`), null),
+    update(ref(db, `${base}/game`), {
+      started:false,
+      round: 0,
+      phase: "collect",
+      powerDisplay: null,
+      power7: null,
+      power34: null,
+      power11: null,
+      power112: null,
+      tableList: null,
+      waitStartedAt: null,
+      shuffleStartedAt: null
+    })
   ]);
 
-  state.seatedTable = null;
   startPop.classList.add('hidden');
-  await syncSeatUI();
+  state.seatedTable = null;
+  syncSeatUI();
 });
 
 /* =========================
-   リサイズ時に位置を更新
+   初期：矢印SVGサイズ
    ========================= */
-window.addEventListener('resize', () => {
-  renderPlays();
-  renderCoins();
-  renderOwnedCoinsBadges();
-  renderDiscardTable();
-  renderTableCards();
-  updatePowerBanner();
-  updatePower7UI();
-  applyPlayableAnimToMyHand();
-});
+ensureArrowSvgSize();
 </script>
 </body>
 </html>
