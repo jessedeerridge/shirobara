@@ -576,6 +576,59 @@
     font-size:14px;
   }
 
+  /* ★効果10：選択/確認/変更ポップ */
+  .power10-owner-pop,
+  .power10-target-pop{
+    position:fixed;
+    left:50%;
+    bottom:10px;
+    transform:translateX(-50%);
+    background:rgba(20,20,20,.92);
+    color:#fff;
+    padding:12px 16px;
+    border-radius:14px;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+    z-index:240;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    min-width:260px;
+    font-weight:900;
+  }
+  .power10-owner-pop.hidden,
+  .power10-target-pop.hidden{display:none;}
+  .power10-owner-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+  }
+  .power10-confirm-pop{
+    position:fixed;
+    background:rgba(20,20,20,.92);
+    color:#fff;
+    padding:10px 12px;
+    border-radius:12px;
+    box-shadow:0 16px 36px rgba(0,0,0,.35);
+    z-index:250;
+    transform:translate(-50%,-50%);
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    min-width:200px;
+    font-weight:900;
+  }
+  .power10-confirm-pop.hidden{display:none;}
+  .power10-confirm-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+  }
+  .power10-ghost{
+    color:#fff;
+    border-color:rgba(255,255,255,.6);
+  }
+
+
   /* ★ 追い出し確認ダイアログ */
   .dialog-backdrop{
     position:fixed;inset:0;background:rgba(0,0,0,.35);
@@ -975,9 +1028,39 @@
           <div class="power-pop"><span id="powerText"></span></div>
         </div>
       </div>
-    </div>
+   </div>
   </div>
 </main>
+
+<!-- ★効果10：選択/確認/変更ポップ -->
+<div id="power10OwnerPop" class="power10-owner-pop hidden">
+  <div>カードを変えさせるプレイヤーを選べます。</div>
+  <div class="power10-owner-actions">
+    <button class="btn ghost power10-ghost" id="btnPower10Skip">選ばない</button>
+  </div>
+</div>
+
+<div id="power10TargetPop" class="power10-target-pop hidden">
+  カードを変えてください。
+</div>
+
+<div id="power10ConfirmPop" class="power10-confirm-pop hidden">
+  <div class="power10-confirm-text">「<span id="power10ConfirmName">—</span>」にカードを変えさせますか？</div>
+  <div class="power10-confirm-actions">
+    <button class="btn ghost power10-ghost" id="btnPower10ConfirmNo">いいえ</button>
+    <button class="btn primary" id="btnPower10ConfirmYes">はい</button>
+  </div>
+</div>
+
+<div id="power10SkipDialog" class="dialog-backdrop hidden">
+  <div class="dialog-box">
+    <p>選ばなくていいですか？</p>
+    <div class="dialog-buttons">
+      <button class="btn ghost" id="btnPower10SkipNo">いいえ</button>
+      <button class="btn primary" id="btnPower10SkipYes">はい</button>
+    </div>
+  </div>
+</div>
 
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
 
@@ -1136,6 +1219,17 @@ const helpBody = document.getElementById('helpBody');
 const powerWrapper = document.getElementById('powerWrapper');
 const powerCardEl = document.getElementById('powerCard');
 const powerTextEl = document.getElementById('powerText');
+
+const power10OwnerPop = document.getElementById('power10OwnerPop');
+const power10TargetPop = document.getElementById('power10TargetPop');
+const power10ConfirmPop = document.getElementById('power10ConfirmPop');
+const power10ConfirmName = document.getElementById('power10ConfirmName');
+const btnPower10Skip = document.getElementById('btnPower10Skip');
+const btnPower10ConfirmNo = document.getElementById('btnPower10ConfirmNo');
+const btnPower10ConfirmYes = document.getElementById('btnPower10ConfirmYes');
+const power10SkipDialog = document.getElementById('power10SkipDialog');
+const btnPower10SkipNo = document.getElementById('btnPower10SkipNo');
+const btnPower10SkipYes = document.getElementById('btnPower10SkipYes');
 
 const powerBanner = document.getElementById('powerBanner');
 const powerBannerNum = document.getElementById('powerBannerNum');
@@ -1380,11 +1474,14 @@ function subscribePlays(){
     updatePower7UI();
     maybeHostAdvanceRound();
     applyPlayableAnimToMyHand();
+    updateSelectModeUI();
+    updatePower10UI();
 
     // ★効果3/4
     maybeTriggerPower34AutoPlays();
     maybeFinishPower34Shuffle();
   });
+
 }
 function subscribeCoins(){
   const coinsRef = ref(db, `rooms/${state.roomCode}/coins`);
@@ -1538,13 +1635,43 @@ function isMyPower112Selectable(){
   if (p112 && p112.used && Number(p112.round || 0) === round && p112.ownerId === state.userId) return false;
   return true;
 }
+
+function getPower10State(){
+  const p10 = state.game?.power10 || null;
+  if (!p10) return null;
+  const round = Number(state.game?.round || 0);
+  if (Number(p10.round || 0) !== round) return null;
+  return p10;
+}
+function isMyPower10Selecting(){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'power10') return false;
+  const pd = state.game?.powerDisplay || null;
+  if (!pd || pd.ownerId !== state.userId) return false;
+  if (Number(pd.number) !== 10) return false;
+  const p10 = getPower10State();
+  if (!p10 || p10.status !== 'selecting') return false;
+  return p10.ownerId === state.userId;
+}
+function isPower10ChangeAllowed(uid = state.userId){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'power10') return false;
+  const p10 = getPower10State();
+  if (!p10 || p10.status !== 'awaiting-change') return false;
+  if (p10.targetId !== uid) return false;
+  if (p10.changeDone) return false;
+  return true;
+}
 function isSelectingOtherHandsNow(){
-  return isMyPower11Selectable() || isMyPower112Selectable();
+  return isMyPower11Selectable() || isMyPower112Selectable() || isMyPower10Selecting();
 }
 
 /* ★選択モードUI：ミニ手札のパルス＆当たり判定 */
 function updateSelectModeUI(){
-  const selecting = isSelectingOtherHandsNow();
+  const selectingPower10 = isMyPower10Selecting();
+  const selectingOther = isMyPower11Selectable() || isMyPower112Selectable();
 
   for (const p of (state.players || [])){
     if (p.id === state.userId) continue;
@@ -1553,7 +1680,8 @@ function updateSelectModeUI(){
     const hit = ui.miniHandHitByUserId.get(p.id);
 
     const hasCards = (getRoleCount(p.id) > 0);
-    const enable = selecting && hasCards;
+    const hasRolePlay = state.plays?.[p.id]?.kind === 'role';
+    const enable = selectingPower10 ? (hasCards && hasRolePlay) : (selectingOther && hasCards);
 
     if (miniHand){
       miniHand.classList.toggle('selectable', enable);
@@ -1562,6 +1690,33 @@ function updateSelectModeUI(){
       hit.classList.toggle('active', enable);
     }
   }
+}
+
+function hidePower10Confirm(){
+  power10ConfirmPop.classList.add('hidden');
+  pendingPower10TargetId = null;
+  pendingPower10TargetName = null;
+}
+
+function showPower10ConfirmAt(clientX, clientY){
+  if (!pendingPower10TargetId) return;
+  power10ConfirmName.textContent = pendingPower10TargetName || '誰か';
+  power10ConfirmPop.style.left = `${clientX}px`;
+  power10ConfirmPop.style.top = `${clientY}px`;
+  power10ConfirmPop.classList.remove('hidden');
+
+  requestAnimationFrame(() => {
+    const rect = power10ConfirmPop.getBoundingClientRect();
+    const pad = 12;
+    let x = clientX;
+    let y = clientY;
+    if (rect.left < pad) x += (pad - rect.left);
+    if (rect.right > window.innerWidth - pad) x -= (rect.right - (window.innerWidth - pad));
+    if (rect.top < pad) y += (pad - rect.top);
+    if (rect.bottom > window.innerHeight - pad) y -= (rect.bottom - (window.innerHeight - pad));
+    power10ConfirmPop.style.left = `${x}px`;
+    power10ConfirmPop.style.top = `${y}px`;
+  });
 }
 
 /* ★効果11：覗き見表示 */
@@ -1671,9 +1826,23 @@ function renderPower11Arrow(){
 }
 
 /* ★共通：他人ミニ手札クリック */
-async function onOtherHandClicked(targetUid){
+async function onOtherHandClicked(targetUid, event){
   if (!state.roomCode) return;
   if (targetUid === state.userId) return;
+
+  // 効果10
+  if (isMyPower10Selecting()){
+    const play = state.plays?.[targetUid] || null;
+    if (!play || play.kind !== 'role') return;
+    if (getRoleCount(targetUid) <= 0) return;
+
+    const targetName = (state.players || []).find(p => p.id === targetUid)?.name || '誰か';
+    pendingPower10TargetId = targetUid;
+    pendingPower10TargetName = targetName;
+
+    showPower10ConfirmAt(event?.clientX ?? 0, event?.clientY ?? 0);
+    return;
+  }
 
   // 効果11
   if (isMyPower11Selectable()){
@@ -2182,7 +2351,9 @@ function maybeFinishPower34Shuffle(){
 function isRolePlayableNow(){
   if (!state.game?.started) return false;
   const phase = state.game?.phase || 'collect';
-  if (phase !== 'collect') return false;
+  if (phase !== 'collect'){
+    return isPower10ChangeAllowed();
+  }
   if (isEveryoneDecided()) return false;
   if (isMyPlayLockedByPower34()) return false;
   return true;
@@ -2213,6 +2384,30 @@ function updatePowerBanner(){
   powerBannerText.textContent = POWER_TEXT[number] || '';
 }
 
+function updatePower10UI(){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  const p10 = getPower10State();
+  const isActive = started && phase === 'power10' && !!p10;
+
+  const isOwnerSelecting = isActive && p10.status === 'selecting' && p10.ownerId === state.userId;
+  power10OwnerPop.classList.toggle('hidden', !isOwnerSelecting);
+
+  const isTargetWaiting =
+    isActive &&
+    p10.status === 'awaiting-change' &&
+    p10.targetId === state.userId &&
+    !p10.changeDone;
+  power10TargetPop.classList.toggle('hidden', !isTargetWaiting);
+
+  if (!isOwnerSelecting){
+    hidePower10Confirm();
+  }
+  if (!isActive){
+    power10SkipDialog.classList.add('hidden');
+  }
+}
+
 function updateGameUI(){
   const started = !!state.game.started;
   coinPool.classList.toggle('hidden', !started);
@@ -2224,6 +2419,7 @@ function updateGameUI(){
   btnNextRound.classList.toggle('visible', !!(started && state.isHost && (phase === 'table' || phase === 'reveal2')));
 
   applyPlayableAnimToMyHand();
+  updatePower10UI();
 
   if (started){
     requestAnimationFrame(() => {
@@ -2289,7 +2485,7 @@ function renderMyHand(){
     });
 
     // ★出さない（✕）カード：効果8 / 効果1&12 で「非表示」になる
-    const passShouldShow = !isPassHiddenForUid(myId);
+    const passShouldShow = !isPassHiddenForUid(myId) && !isPower10ChangeAllowed(myId);
 
     if (passShouldShow){
       const pass = document.createElement('div');
@@ -2708,7 +2904,7 @@ function renderPlayerCircle(players){
       hit.title = '手札を選択';
       hit.addEventListener('click', (e) => {
         e.stopPropagation();
-        onOtherHandClicked(p.id);
+        onOtherHandClicked(p.id, e);
       });
       tag.appendChild(hit);
 
@@ -2780,6 +2976,8 @@ btnKickYes.addEventListener('click', async (e) => {
    ========================= */
 let pendingGiveTargetId = null;
 let pendingGiveTargetName = null;
+let pendingPower10TargetId = null;
+let pendingPower10TargetName = null;
 
 giveDialog.addEventListener('click', (e) => {
   if (e.target === giveDialog) {
@@ -2836,6 +3034,78 @@ btnGiveYes.addEventListener('click', async (e) => {
   pendingGiveTargetId = null;
   pendingGiveTargetName = null;
   updatePower7UI();
+});
+
+/* =========================
+   効果10：選択/確認/変更
+   ========================= */
+power10ConfirmPop.addEventListener('click', (e) => {
+  e.stopPropagation();
+});
+btnPower10ConfirmNo.addEventListener('click', (e) => {
+  e.stopPropagation();
+  hidePower10Confirm();
+});
+btnPower10ConfirmYes.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  if (!state.roomCode) return;
+  if (!pendingPower10TargetId) return;
+
+  const targetId = pendingPower10TargetId;
+  const now = Date.now();
+  const round = Number(state.game?.round || 1);
+
+  await runTransaction(ref(db, `rooms/${state.roomCode}/game/power10`), (cur) => {
+    const pd = state.game?.powerDisplay || null;
+    if (!pd || pd.ownerId !== state.userId || Number(pd.number) !== 10) return cur || null;
+    const c = cur || {};
+    if (c.status !== 'selecting') return c;
+    if (Number(c.round || 0) !== round) return c;
+    return {
+      ...c,
+      status: 'awaiting-change',
+      targetId,
+      chosenAt: now
+    };
+  });
+
+  hidePower10Confirm();
+});
+
+btnPower10Skip.addEventListener('click', (e) => {
+  e.stopPropagation();
+  power10SkipDialog.classList.remove('hidden');
+});
+power10SkipDialog.addEventListener('click', (e) => {
+  if (e.target === power10SkipDialog) {
+    power10SkipDialog.classList.add('hidden');
+  }
+});
+btnPower10SkipNo.addEventListener('click', (e) => {
+  e.stopPropagation();
+  power10SkipDialog.classList.add('hidden');
+});
+btnPower10SkipYes.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  if (!state.roomCode) return;
+
+  const now = Date.now();
+  const round = Number(state.game?.round || 1);
+
+  await runTransaction(ref(db, `rooms/${state.roomCode}/game/power10`), (cur) => {
+    const pd = state.game?.powerDisplay || null;
+    if (!pd || pd.ownerId !== state.userId || Number(pd.number) !== 10) return cur || null;
+    const c = cur || {};
+    if (Number(c.round || 0) !== round) return c;
+    if (c.status !== 'selecting') return c;
+    return {
+      ...c,
+      status: 'skipped',
+      skippedAt: now
+    };
+  });
+
+  power10SkipDialog.classList.add('hidden');
 });
 
 /* =========================
@@ -2947,6 +3217,7 @@ async function startGameDeal(){
       powerDisplay: null,
       power7: null,
       power34: null,
+      power10: null,
       power11: null,   // ★追加
       power112: null,  // ★追加
       tableList: null,
@@ -3233,12 +3504,49 @@ function maybeHostAdvanceRound(){
   const playedCount = Object.keys(plays).length;
 
   if (phase === 'collect' && playedCount === playerCount){
+    const powerNum = Number(state.game?.powerDisplay?.number ?? null);
+    const ownerId = state.game?.powerDisplay?.ownerId || null;
+
+    if (powerNum === 10 && ownerId){
+      const round = Number(state.game?.round || 1);
+      const p10 = state.game?.power10 || null;
+      if (!p10 || Number(p10.round || 0) !== round){
+        update(ref(db, `rooms/${state.roomCode}/game`), {
+          phase: 'power10',
+          power10: {
+            round,
+            ownerId,
+            status: 'selecting',
+            targetId: null,
+            changeDone: false,
+            startedAt: Date.now()
+          }
+        });
+      }
+      return;
+    }
+
     update(ref(db, `rooms/${state.roomCode}/game`), {
       phase: 'wait',
       waitStartedAt: Date.now()
     });
     return;
   }
+
+  if (phase === 'power10'){
+    const p10 = state.game?.power10 || null;
+    const round = Number(state.game?.round || 0);
+    const resolved = p10 && Number(p10.round || 0) === round && (p10.status === 'done' || p10.status === 'skipped');
+
+    if (resolved){
+      update(ref(db, `rooms/${state.roomCode}/game`), {
+        phase: 'wait',
+        waitStartedAt: Date.now()
+      });
+    }
+    return;
+  }
+
 
   if (phase === 'wait'){
     const t = Number(state.game.waitStartedAt || 0);
@@ -3408,6 +3716,7 @@ btnNextRound.addEventListener('click', async () => {
       powerDisplay: null,
       power7: null,
       power34: null,
+      power10: null,
       power11: null,   // ★追加
       power112: null,  // ★追加
       tableList: null,
@@ -3426,12 +3735,14 @@ function startDragCard(e, payload){
   if (!state.game.started) return;
 
   const phase = state.game.phase || 'collect';
-  if (phase !== 'collect') return;
-  if (isEveryoneDecided()) return;
+  const power10Allowed = isPower10ChangeAllowed();
+  if (phase !== 'collect' && !power10Allowed) return;
+  if (!power10Allowed && isEveryoneDecided()) return;
   if (payload.kind !== 'role') return;
 
   // ★効果3/4で選べない人はドラッグ不可
-  if (isMyPlayLockedByPower34()) return;
+  if (!power10Allowed && isMyPlayLockedByPower34()) return;
+
 
   const target = e.currentTarget;
   if (!(target instanceof HTMLElement)) return;
@@ -3496,14 +3807,17 @@ async function setMyPlay({ kind, cardName=null }){
   if (!state.game.started) return;
 
   const phase = state.game.phase || 'collect';
-  if (phase !== 'collect') return;
-  if (isEveryoneDecided()) return;
+  const power10Allowed = isPower10ChangeAllowed();
+  if (phase !== 'collect' && !power10Allowed) return;
+  if (!power10Allowed && isEveryoneDecided()) return;
 
   // ★効果3/4で選べない人は「出さない」も不可
-  if (isMyPlayLockedByPower34()) return;
+  if (!power10Allowed && isMyPlayLockedByPower34()) return;
+  if (power10Allowed && kind !== 'role') return;
 
   const uid = state.userId;
   const old = state.plays?.[uid] || null;
+
 
   const roleRef = ref(db, `rooms/${state.roomCode}/hands/${uid}/roleCards`);
   const newIsRole = (kind === 'role');
@@ -3529,7 +3843,23 @@ async function setMyPlay({ kind, cardName=null }){
     seatIndex,
     playedAt: Date.now()
   });
+
+  if (power10Allowed){
+    await runTransaction(ref(db, `rooms/${state.roomCode}/game/power10`), (cur) => {
+      const c = cur || {};
+      if (c.status !== 'awaiting-change') return c;
+      if (c.targetId !== uid) return c;
+      if (c.changeDone) return c;
+      return {
+        ...c,
+        status: 'done',
+        changeDone: true,
+        changedAt: Date.now()
+      };
+    });
+  }
 }
+
 
 /* =========================
    ★コイン：いつでもドラッグ可能（既存仕様）
@@ -4002,6 +4332,7 @@ btnResetRoom.addEventListener('click', async () => {
       powerDisplay: null,
       power7: null,
       power34: null,
+      power10: null,
       power11: null,
       power112: null,
       tableList: null,
