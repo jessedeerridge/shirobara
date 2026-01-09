@@ -906,6 +906,15 @@
   }
   .arrow-layer.hidden{display:none;}
 
+  /* ★効果5：選ばれた2人を赤点線で結ぶ */
+  .power5-link-layer{
+    position:fixed;
+    inset:0;
+    z-index:588;
+    pointer-events:none;
+  }
+  .power5-link-layer.hidden{display:none;}
+
 /* ★追加：ネームタグ左外の🤚🏻マーク */
 .player-tag .handmark{
   position:absolute;
@@ -953,9 +962,20 @@
   </div>
 </div>
 
+<!-- ★追加：効果5 赤点線リンク（全員） -->
+<div id="power5LinkLayer" class="power5-link-layer hidden" aria-hidden="true">
+  <svg id="power5LinkSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+    <line id="power5LinkLine" x1="0" y1="0" x2="0" y2="0"
+      stroke="rgba(220,38,38,.95)"
+      stroke-width="3"
+      stroke-dasharray="6 6" />
+  </svg>
+</div>
+
 <!-- ★追加：効果11 点線矢印＋👁（全員） -->
 <div id="arrowLayer" class="arrow-layer hidden" aria-hidden="true">
   <svg id="arrowSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+
     <defs>
       <marker id="arrowHead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
         <path d="M0,0 L9,3 L0,6 Z" fill="rgba(20,20,20,.92)"></path>
@@ -1258,10 +1278,14 @@ const power34ShuffleOverlay = document.getElementById('power34ShuffleOverlay');
 const peekOverlay = document.getElementById('peekOverlay');
 const peekCard = document.getElementById('peekCard');
 const peekLabel = document.getElementById('peekLabel');
+const power5LinkLayer = document.getElementById('power5LinkLayer');
+const power5LinkSvg = document.getElementById('power5LinkSvg');
+const power5LinkLine = document.getElementById('power5LinkLine');
 const arrowLayer = document.getElementById('arrowLayer');
 const arrowSvg = document.getElementById('arrowSvg');
 const arrowLine = document.getElementById('arrowLine');
 const arrowEye = document.getElementById('arrowEye');
+
 
 /* =========================
    1〜12の効果
@@ -1462,6 +1486,8 @@ function subscribeGame(){
     renderPower11Arrow();
     // ★追加：選択モード更新（効果11 / 1 / 12）
     updateSelectModeUI();
+    // ★追加：効果5リンク更新
+    renderPower5Link();
 updateHandmarks(); 
   });
 }
@@ -1476,6 +1502,10 @@ function subscribePlays(){
     applyPlayableAnimToMyHand();
     updateSelectModeUI();
     updatePower10UI();
+    renderPower5Link();
+    maybeApplyPower5AutoPass();
+    maybeRefreshPower5PassUI();
+    renderMyHand();
 
     // ★効果3/4
     maybeTriggerPower34AutoPlays();
@@ -1528,6 +1558,23 @@ function wrapSeatIndex(seatIndex){
   if (!max) return null;
   const idx = ((seatIndex - 1) % max + max) % max;
   return idx + 1;
+}
+function getClockwiseDistanceFrom(ownerId, uid){
+  const ownerSeat = getSeatIndexByUid(ownerId);
+  const targetSeat = getSeatIndexByUid(uid);
+  const max = getMaxSeatCount();
+  if (ownerSeat == null || targetSeat == null || !max) return null;
+  return ((targetSeat - ownerSeat) % max + max) % max;
+}
+function getPower5OrderInfo(p5){
+  if (!p5 || !Array.isArray(p5.targets) || p5.targets.length !== 2) return null;
+  const [a, b] = p5.targets;
+  if (!a || !b || !p5.ownerId) return null;
+  const da = getClockwiseDistanceFrom(p5.ownerId, a);
+  const db = getClockwiseDistanceFrom(p5.ownerId, b);
+  if (da == null || db == null) return null;
+  if (da === db) return null;
+  return da < db ? { firstId: a, secondId: b } : { firstId: b, secondId: a };
 }
 function getRightUid(uid){
   const seatIndex = getSeatIndexByUid(uid);
@@ -1599,6 +1646,16 @@ function isPassHiddenForUid(uid){
     if (p112.targetId && p112.targetId === uid) return true;
   }
 
+  // 効果5（先の人がカードを出したら後の人は✕非表示）
+  const p5 = getPower5State();
+  if (p5 && p5.used){
+    const order = getPower5OrderInfo(p5);
+    if (order && order.secondId === uid){
+      const firstPlay = state.plays?.[order.firstId] || null;
+      if (firstPlay && firstPlay.kind === 'role') return true;
+    }
+  }
+
   return false;
 }
 
@@ -1632,9 +1689,38 @@ function isMyPower112Selectable(){
 
   const p112 = state.game?.power112 || null;
   const round = Number(state.game?.round || 0);
-  if (p112 && p112.used && Number(p112.round || 0) === round && p112.ownerId === state.userId) return false;
+ if (p112 && p112.used && Number(p112.round || 0) === round && p112.ownerId === state.userId) return false;
   return true;
 }
+
+function getPower5State(){
+  const p5 = state.game?.power5 || null;
+  if (!p5) return null;
+  const round = Number(state.game?.round || 0);
+  if (Number(p5.round || 0) !== round) return null;
+  return p5;
+}
+
+function isMyPlayLockedByPower5Pass(){
+  const p5 = getPower5State();
+  if (!p5 || !p5.used) return false;
+  const order = getPower5OrderInfo(p5);
+  if (!order) return false;
+  if (order.secondId !== state.userId) return false;
+  const firstPlay = state.plays?.[order.firstId] || null;
+  return !!(firstPlay && firstPlay.kind === 'pass');
+}
+
+function isMyPower5Selectable(){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'collect') return false;
+  if (!isMyPowerDisplay(5)) return false;
+  const p5 = getPower5State();
+  if (p5 && p5.used && p5.ownerId === state.userId) return false;
+  return true;
+}
+
 
 function getPower10State(){
   const p10 = state.game?.power10 || null;
@@ -1665,13 +1751,15 @@ function isPower10ChangeAllowed(uid = state.userId){
   return true;
 }
 function isSelectingOtherHandsNow(){
-  return isMyPower11Selectable() || isMyPower112Selectable() || isMyPower10Selecting();
+  return isMyPower11Selectable() || isMyPower112Selectable() || isMyPower10Selecting() || isMyPower5Selectable();
 }
+
 
 /* ★選択モードUI：ミニ手札のパルス＆当たり判定 */
 function updateSelectModeUI(){
   const selectingPower10 = isMyPower10Selecting();
   const selectingOther = isMyPower11Selectable() || isMyPower112Selectable();
+  const selectingPower5 = isMyPower5Selectable();
 
   for (const p of (state.players || [])){
     if (p.id === state.userId) continue;
@@ -1681,7 +1769,14 @@ function updateSelectModeUI(){
 
     const hasCards = (getRoleCount(p.id) > 0);
     const hasRolePlay = state.plays?.[p.id]?.kind === 'role';
-    const enable = selectingPower10 ? (hasCards && hasRolePlay) : (selectingOther && hasCards);
+    let enable = false;
+    if (selectingPower10){
+      enable = hasCards && hasRolePlay;
+    } else if (selectingOther){
+      enable = hasCards;
+    } else if (selectingPower5){
+      enable = hasCards;
+    }
 
     if (miniHand){
       miniHand.classList.toggle('selectable', enable);
@@ -1745,7 +1840,6 @@ function ensureArrowSvgSize(){
   arrowSvg.setAttribute('viewBox', `0 0 ${w} ${h}`);
 }
 window.addEventListener('resize', () => { ensureArrowSvgSize(); renderPower11Arrow(); });
-
 function renderPower11Arrow(){
   ensureArrowSvgSize();
 
@@ -1825,6 +1919,88 @@ function renderPower11Arrow(){
   }
 }
 
+/* ★効果5：赤点線リンク（全員） */
+let power5LinkRaf = null;
+function stopPower5LinkLoop(){
+  if (power5LinkRaf){
+    cancelAnimationFrame(power5LinkRaf);
+    power5LinkRaf = null;
+  }
+}
+function ensurePower5SvgSize(){
+  const w = window.innerWidth || 1;
+  const h = window.innerHeight || 1;
+  power5LinkSvg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+}
+window.addEventListener('resize', () => { ensurePower5SvgSize(); renderPower5Link(); });
+
+function renderPower5Link(){
+  ensurePower5SvgSize();
+
+  const p5 = getPower5State();
+  const round = Number(state.game?.round || 0);
+
+  const active =
+    !!p5 &&
+    !!p5.used &&
+    Number(p5.round || 0) === round &&
+    Array.isArray(p5.targets) &&
+    p5.targets.length === 2;
+
+  if (!active){
+    power5LinkLayer.classList.add('hidden');
+    stopPower5LinkLoop();
+    return;
+  }
+
+  const [uidA, uidB] = p5.targets;
+  power5LinkLayer.classList.remove('hidden');
+
+  const tick = () => {
+    const p5now = getPower5State();
+    const activeNow =
+      !!p5now &&
+      !!p5now.used &&
+      Array.isArray(p5now.targets) &&
+      p5now.targets.length === 2;
+
+    if (!activeNow){
+      power5LinkLayer.classList.add('hidden');
+      stopPower5LinkLoop();
+      return;
+    }
+
+    const tagA = ui.tagByUserId.get(uidA);
+    const tagB = ui.tagByUserId.get(uidB);
+    if (!tagA || !tagB){
+      power5LinkLayer.classList.add('hidden');
+      stopPower5LinkLoop();
+      return;
+    }
+
+    const r1 = tagA.getBoundingClientRect();
+    const r2 = tagB.getBoundingClientRect();
+
+    const x1 = r1.left + r1.width/2;
+    const y1 = r1.top  + r1.height/2;
+    const x2 = r2.left + r2.width/2;
+    const y2 = r2.top  + r2.height/2;
+
+    power5LinkLine.setAttribute('x1', String(x1));
+    power5LinkLine.setAttribute('y1', String(y1));
+    power5LinkLine.setAttribute('x2', String(x2));
+    power5LinkLine.setAttribute('y2', String(y2));
+
+    power5LinkRaf = requestAnimationFrame(tick);
+  };
+
+  if (!power5LinkRaf){
+    power5LinkRaf = requestAnimationFrame(tick);
+  }
+}
+
+
+
 /* ★共通：他人ミニ手札クリック */
 async function onOtherHandClicked(targetUid, event){
   if (!state.roomCode) return;
@@ -1841,6 +2017,48 @@ async function onOtherHandClicked(targetUid, event){
     pendingPower10TargetName = targetName;
 
     showPower10ConfirmAt(event?.clientX ?? 0, event?.clientY ?? 0);
+   return;
+  }
+
+  // 効果5
+  if (isMyPower5Selectable()){
+    if (getRoleCount(targetUid) <= 0) return;
+
+    const now = Date.now();
+    const round = Number(state.game?.round || 1);
+
+    await runTransaction(ref(db, `rooms/${state.roomCode}/game/power5`), (cur) => {
+      const pd = state.game?.powerDisplay || null;
+      if (!pd || pd.ownerId !== state.userId || Number(pd.number) !== 5) return cur || null;
+
+      const c = cur || {};
+      const currentRound = Number(c.round || 0);
+      let targets = Array.isArray(c.targets) ? [...c.targets] : [];
+
+      if (currentRound !== round || c.ownerId !== state.userId){
+        targets = [];
+      }
+
+      if (targets.includes(targetUid)){
+        targets = targets.filter(id => id !== targetUid);
+      } else {
+        if (targets.length >= 2) return c;
+        targets.push(targetUid);
+      }
+
+      const used = targets.length >= 2;
+
+      return {
+        round,
+        ownerId: state.userId,
+        targets,
+        used,
+        chosenAt: used ? now : (c.chosenAt || null)
+      };
+    });
+
+    updateSelectModeUI();
+    renderPower5Link();
     return;
   }
 
@@ -1927,6 +2145,33 @@ async function onOtherHandClicked(targetUid, event){
     return;
   }
 }
+
+/* =========================
+   ★効果5 自動✕／✕非表示
+   ========================= */
+async function maybeApplyPower5AutoPass(){
+  const p5 = getPower5State();
+  if (!p5 || !p5.used) return;
+  const order = getPower5OrderInfo(p5);
+  if (!order) return;
+  const firstPlay = state.plays?.[order.firstId] || null;
+  if (!firstPlay || firstPlay.kind !== 'pass') return;
+  if (order.secondId !== state.userId) return;
+  const myPlay = state.plays?.[state.userId] || null;
+  if (myPlay && myPlay.kind === 'pass') return;
+  await setMyPlay({ kind:'pass' });
+}
+
+function maybeRefreshPower5PassUI(){
+  const p5 = getPower5State();
+  if (!p5 || !p5.used) return;
+  const order = getPower5OrderInfo(p5);
+  if (!order) return;
+  if (order.secondId !== state.userId) return;
+  renderMyHand();
+}
+
+
 
 /* =========================
    ★効果3/4 強制提出（6秒待機＋対象クリックで即実行）
@@ -2356,6 +2601,7 @@ function isRolePlayableNow(){
   }
   if (isEveryoneDecided()) return false;
   if (isMyPlayLockedByPower34()) return false;
+  if (isMyPlayLockedByPower5Pass()) return false;
   return true;
 }
 function applyPlayableAnimToMyHand(){
@@ -2441,6 +2687,7 @@ function renderHands(){
   updatePower7UI();
   updateSelectModeUI();
   renderPower11Arrow();
+  renderPower5Link();
 }
 
 function renderMyHand(){
@@ -2925,6 +3172,7 @@ function renderPlayerCircle(players){
   renderOwnedCoinsBadges();
   updateSelectModeUI();
   updateHandmarks();
+  renderPower5Link();
 }
 
 /* =========================
@@ -3218,6 +3466,7 @@ async function startGameDeal(){
       power7: null,
       power34: null,
       power10: null,
+      power5: null,
       power11: null,   // ★追加
       power112: null,  // ★追加
       tableList: null,
@@ -3717,6 +3966,7 @@ btnNextRound.addEventListener('click', async () => {
       power7: null,
       power34: null,
       power10: null,
+      power5: null,
       power11: null,   // ★追加
       power112: null,  // ★追加
       tableList: null,
@@ -3742,6 +3992,8 @@ function startDragCard(e, payload){
 
   // ★効果3/4で選べない人はドラッグ不可
   if (!power10Allowed && isMyPlayLockedByPower34()) return;
+  // ★効果5で先が✕の時、後の人は選択不可
+  if (!power10Allowed && isMyPlayLockedByPower5Pass()) return;
 
 
   const target = e.currentTarget;
@@ -4333,6 +4585,7 @@ btnResetRoom.addEventListener('click', async () => {
       power7: null,
       power34: null,
       power10: null,
+      power5: null,
       power11: null,
       power112: null,
       tableList: null,
