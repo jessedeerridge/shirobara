@@ -1498,6 +1498,7 @@ function subscribeGame(){
     updateSelectModeUI();
     // ★追加：効果5リンク更新
     renderPower5Link();
+    maybeResetPower5Link();
 updateHandmarks(); 
   });
 }
@@ -1532,6 +1533,7 @@ function subscribeCoins(){
     updatePowerBanner();
     updatePower7UI();
     applyPlayableAnimToMyHand();
+    maybeResetPower5Link();
   });
 }
 function subscribeDiscard(){
@@ -1710,6 +1712,15 @@ function getPower5State(){
   if (Number(p5.round || 0) !== round) return null;
   return p5;
 }
+function isPower5SelectionLocked(){
+  if (!isMyPowerDisplay(5)) return false;
+  const myPlay = state.plays?.[state.userId] || null;
+  if (!myPlay) return false;
+  const playedAt = Number(myPlay.playedAt || 0);
+  const shownAt = Number(state.game?.powerDisplay?.shownAt || 0);
+  if (shownAt > playedAt) return false;
+  return true;
+}
 function isPower5SelectionIncomplete(){
   const started = !!state.game?.started;
   const phase = state.game?.phase || 'collect';
@@ -1746,6 +1757,7 @@ function isMyPower5Selectable(){
   const phase = state.game?.phase || 'collect';
   if (!started || phase !== 'collect') return false;
   if (!isMyPowerDisplay(5)) return false;
+  if (isPower5SelectionLocked()) return false;
   return true;
 }
 
@@ -2052,6 +2064,24 @@ function renderPower5Link(){
   if (!power5LinkRaf){
     power5LinkRaf = requestAnimationFrame(tick);
   }
+}
+
+async function maybeResetPower5Link(){
+  if (!state.roomCode || !state.isHost) return;
+  const p5 = state.game?.power5 || null;
+  if (!p5) return;
+  const round = Number(state.game?.round || 0);
+  if (Number(p5.round || 0) !== round) return;
+
+  const pd = state.game?.powerDisplay || null;
+  const powerIsFive = !!pd && Number(pd.number) === 5 && !!pd.ownerId;
+  const hasCoin = !!(state.coins && Object.prototype.hasOwnProperty.call(state.coins, COIN_ID));
+  const coinOwner = hasCoin ? (state.coins?.[COIN_ID]?.ownerId ?? null) : null;
+  const coinMismatch = hasCoin && coinOwner !== pd?.ownerId;
+
+  if (powerIsFive && !coinMismatch) return;
+
+  await set(ref(db, `rooms/${state.roomCode}/game/power5`), null);
 }
 
 
