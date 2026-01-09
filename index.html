@@ -1218,6 +1218,7 @@ function subscribeGame(){
     renderTableCards();
     renderPlays();
     applyPlayableAnimToMyHand();
+    maybeTriggerPower34AutoPlays();
   });
 }
 function subscribePlays(){
@@ -1330,6 +1331,8 @@ let power34ShuffleCleanupTimer = null;
 let lastPower34AnimAt = 0;
 let power34WaitTimer = null;
 let power34WaitKey = null;
+const POWER34_TRIGGER_DELAY_MS = 6000;
+
 function clearPower34WaitTimer(){
   if (power34WaitTimer){
     clearTimeout(power34WaitTimer);
@@ -1397,8 +1400,78 @@ function endPower34ShuffleAnim(){
   }, 520);
 }
 
+async function registerPower34ForcedClick(){
+  if (!state.roomCode) return;
+
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'collect') return;
+
+  const pd = state.game?.powerDisplay || null;
+  if (!pd || !pd.ownerId) return;
+
+  const num = Number(pd.number);
+  if (num !== 3 && num !== 4) return;
+
+  const round = Number(state.game?.round || 1);
+  const base = `rooms/${state.roomCode}`;
+  const forcedUid = (num === 3) ? getLeftUid(pd.ownerId) : getRightUid(pd.ownerId);
+  if (!forcedUid || forcedUid !== state.userId) return;
+
+  const triggerUid = (num === 3) ? getLeftUid(forcedUid) : pd.ownerId;
+  if (!triggerUid) return;
+
+  const triggerPlay = state.plays?.[triggerUid] || null;
+  const triggerAt = Number(triggerPlay?.playedAt || 0);
+  if (!triggerAt) return;
+
+  const p34Ref = ref(db, `${base}/game/power34`);
+  await runTransaction(p34Ref, (cur) => {
+    const c = cur || {};
+    if (c.round !== round || c.ownerId !== pd.ownerId || Number(c.number) !== num){
+      return {
+        round,
+        ownerId: pd.ownerId,
+        number: num,
+        triggerUid,
+        forcedUid,
+        triggerAt,
+        done: false,
+        claimedBy: null,
+        claimedAt: null,
+        clickedBy: state.userId,
+        clickedAt: Date.now()
+      };
+    }
+
+    if (c.done) return c;
+    if (c.triggerUid !== triggerUid || c.forcedUid !== forcedUid || Number(c.triggerAt) !== triggerAt){
+      return {
+        round,
+        ownerId: pd.ownerId,
+        number: num,
+        triggerUid,
+        forcedUid,
+        triggerAt,
+        done: false,
+        claimedBy: null,
+        claimedAt: null,
+        clickedBy: state.userId,
+        clickedAt: Date.now()
+      };
+    }
+
+    if (!c.clickedAt){
+      c.clickedBy = state.userId;
+      c.clickedAt = Date.now();
+    }
+    return c;
+  });
+}
+
 async function maybeTriggerPower34AutoPlays(){
   if (!state.roomCode) return;
+
 
   const started = !!state.game?.started;
   const phase = state.game?.phase || 'collect';
@@ -1449,7 +1522,7 @@ async function maybeTriggerPower34AutoPlays(){
     return;
   }
 
-  // triggerPlay の 1秒後に実行（ただし1回だけ）
+  // triggerPlay の 6秒後に実行（ただし1回だけ）
   const triggerAt = Number(triggerPlay.playedAt || 0);
   if (!triggerAt){
     clearPower34WaitTimer();
@@ -1458,9 +1531,20 @@ async function maybeTriggerPower34AutoPlays(){
 
   const now = Date.now();
 
-  // 1秒未満なら「残り時間後に必ず再チェック」
-  if (now - triggerAt < 1000){
-    const remain = 1000 - (now - triggerAt);
+  const p34State = state.game?.power34 || null;
+  const hasForcedClick = !!(
+    p34State &&
+    p34State.clickedAt &&
+    p34State.triggerUid === triggerUid &&
+    p34State.forcedUid === forcedUid &&
+    Number(p34State.triggerAt) === triggerAt &&
+    Number(p34State.number) === num &&
+    p34State.ownerId === pd.ownerId
+  );
+
+  // 6秒未満なら「残り時間後に必ず再チェック」
+  if (!hasForcedClick && now - triggerAt < POWER34_TRIGGER_DELAY_MS){
+    const remain = POWER34_TRIGGER_DELAY_MS - (now - triggerAt);
     const key = `${round}|${num}|${pd.ownerId}|${triggerUid}|${forcedUid}|${triggerAt}`;
     if (power34WaitKey !== key){
       clearPower34WaitTimer();
@@ -1685,7 +1769,10 @@ function renderMyHand(){
       card.appendChild(face);
       card.appendChild(label);
 
-      card.addEventListener('pointerdown', (e) => startDragCard(e, { kind:'role', cardName:name }));
+      card.addEventListener('pointerdown', (e) => {
+        registerPower34ForcedClick();
+        startDragCard(e, { kind:'role', cardName:name });
+      });
       myHandEl.appendChild(card);
     });
 
