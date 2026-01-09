@@ -1710,7 +1710,15 @@ function isMyPlayLockedByPower5Pass(){
   const firstPlay = state.plays?.[order.firstId] || null;
   return !!(firstPlay && firstPlay.kind === 'pass');
 }
-
+function isMyPlayLockedByPower5Waiting(){
+  const p5 = getPower5State();
+  if (!p5 || !p5.used) return false;
+  const order = getPower5OrderInfo(p5);
+  if (!order) return false;
+  if (order.secondId !== state.userId) return false;
+  const firstPlay = state.plays?.[order.firstId] || null;
+  return !firstPlay;
+}
 function isMyPower5Selectable(){
   const started = !!state.game?.started;
   const phase = state.game?.phase || 'collect';
@@ -2601,6 +2609,7 @@ function isRolePlayableNow(){
   }
   if (isEveryoneDecided()) return false;
   if (isMyPlayLockedByPower34()) return false;
+  if (isMyPlayLockedByPower5Waiting()) return false;
   if (isMyPlayLockedByPower5Pass()) return false;
   return true;
 }
@@ -2732,7 +2741,10 @@ function renderMyHand(){
     });
 
     // ★出さない（✕）カード：効果8 / 効果1&12 で「非表示」になる
-    const passShouldShow = !isPassHiddenForUid(myId) && !isPower10ChangeAllowed(myId);
+    const passShouldShow =
+      !isPassHiddenForUid(myId) &&
+      !isPower10ChangeAllowed(myId) &&
+      !isMyPlayLockedByPower5Waiting();
 
     if (passShouldShow){
       const pass = document.createElement('div');
@@ -2741,6 +2753,8 @@ function renderMyHand(){
       pass.innerHTML = `<div class="label">出さない</div>`;
       pass.addEventListener('click', async (e) => {
         e.stopPropagation();
+        if (isMyPlayLockedByPower5Waiting()) return;
+        if (isMyPlayLockedByPower5Pass()) return;
         await setMyPlay({ kind:'pass' });
       });
       myHandEl.appendChild(pass);
@@ -3992,6 +4006,8 @@ function startDragCard(e, payload){
 
   // ★効果3/4で選べない人はドラッグ不可
   if (!power10Allowed && isMyPlayLockedByPower34()) return;
+  // ★効果5：先の人が決めるまで後の人はドラッグ不可
+  if (!power10Allowed && isMyPlayLockedByPower5Waiting()) return;
   // ★効果5で先が✕の時、後の人は選択不可
   if (!power10Allowed && isMyPlayLockedByPower5Pass()) return;
 
@@ -4065,6 +4081,10 @@ async function setMyPlay({ kind, cardName=null }){
 
   // ★効果3/4で選べない人は「出さない」も不可
   if (!power10Allowed && isMyPlayLockedByPower34()) return;
+  // ★効果5：先の人が決めるまで後の人は不可
+  if (!power10Allowed && isMyPlayLockedByPower5Waiting()) return;
+  // ★効果5：先の人が✕なら後の人はカード不可（✕のみ許可）
+  if (!power10Allowed && isMyPlayLockedByPower5Pass() && kind !== 'pass') return;
   if (power10Allowed && kind !== 'role') return;
 
   const uid = state.userId;
@@ -4077,10 +4097,11 @@ async function setMyPlay({ kind, cardName=null }){
 
   const tx = await runTransaction(roleRef, (current) => {
     let arr = Array.isArray(current) ? [...current] : [];
-    if (oldIsRole) arr.push(old.card);
+    if (oldIsRole && !arr.includes(old.card)) arr.push(old.card);
     if (newIsRole){
       const idx = arr.indexOf(cardName);
       if (idx === -1) return;
+
       arr.splice(idx, 1);
     }
     return arr;
