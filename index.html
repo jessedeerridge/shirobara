@@ -753,22 +753,42 @@
   }
   .help-pop-title{font-weight:900;font-size:14px;}
   .help-pop-body{padding:12px;overflow:auto;max-height:calc(70vh - 48px);}
+ .help-section{margin-bottom:16px;}
+  .help-section:last-child{margin-bottom:0;}
+  .help-section-title{font-weight:900;font-size:13px;margin-bottom:6px;}
   .role-row{
     display:flex;gap:12px;align-items:flex-start;
     padding:10px 0;
     border-bottom:1px dashed #eee;
   }
   .role-row:last-child{border-bottom:none;}
+  .role-card-stack{display:flex;gap:6px;align-items:flex-start;}
   .role-card-mini{
+    position:relative;
     width:54px;height:76px;border-radius:10px;border:1px solid #ddd;background:#111;
     box-shadow:0 6px 16px rgba(0,0,0,.10);
     flex:0 0 auto;
-    display:flex;align-items:center;justify-content:center;
-    font-size:18px;font-weight:1000;color:#fff;
+    background-size:cover;
+    background-position:center;
+  }
+  .role-card-mini.dim{opacity:.35;}
+  .role-card-mini .count-badge{
+    position:absolute;top:4px;right:4px;
+    padding:2px 6px;border-radius:999px;
+    background:rgba(0,0,0,.75);color:#fff;
+    font-size:11px;font-weight:900;
   }
   .role-desc{flex:1 1 auto;}
   .role-desc .name{font-weight:1000;margin-bottom:4px;}
   .role-desc .text{font-size:13px;line-height:1.55;color:#222;white-space:pre-wrap;}
+  .help-effect-grid{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:8px;}
+  .help-effect-card{
+    border:1px solid #e5e5e5;border-radius:12px;
+    padding:8px;background:#fff;box-shadow:0 4px 10px rgba(0,0,0,.04);
+    display:flex;flex-direction:column;gap:4px;
+  }
+  .help-effect-num{font-weight:900;font-size:14px;}
+  .help-effect-text{font-size:12px;line-height:1.4;white-space:pre-wrap;color:#222;}
 
   /* ===== コインプール（右上） ===== */
   /* ===== コインプール（右上・ゲーム画面と同じレイヤー） ===== */
@@ -1828,27 +1848,124 @@ function checkRoundEndConditionsAfterDiscardPlaced(){
 
 
 
+function getHelpPlayerCount(){
+  const maxPlayers = Number(state.room?.maxPlayers || 0);
+  if (maxPlayers) return maxPlayers;
+  return state.players?.length || 0;
+}
 function renderHelpList(){
   helpBody.innerHTML = '';
-  for(let i=1;i<=12;i++){
-    const row = document.createElement('div');
-    row.className = 'role-row';
 
-    const card = document.createElement('div');
-    card.className = 'role-card-mini';
-    card.textContent = String(i);
+  const roleSection = document.createElement('div');
+  roleSection.className = 'help-section';
+  const roleTitle = document.createElement('div');
+  roleTitle.className = 'help-section-title';
+  roleTitle.textContent = '役職カード';
+  roleSection.appendChild(roleTitle);
+
+  const playerCount = getHelpPlayerCount();
+  const giantBladeCount = playerCount === 9 ? 1 : (playerCount === 10 ? 2 : null);
+  const giantBladeDim = playerCount > 0 && playerCount < 7;
+
+  const roleRows = [
+    {
+      name: '白薔薇',
+      images: ['白薔薇'],
+      text: 'このカードを出した時、他に刃カードを出した人がいれば負ける。白薔薇と司教と双刃と巨刃はゲーム開始時に目を合わせる（具体的な正体までは知らない）。'
+    },
+    {
+      name: '司教',
+      images: ['司教'],
+      text: '司教と信者が合わせてx人生存し、かつ白薔薇が生存すれば勝ち。白薔薇と司教と双刃と巨刃はゲーム開始時に目を合わせる（具体的な正体までは知らない）。'
+    },
+    {
+      name: '信者',
+      images: ['信者'],
+      text: '司教と信者が合わせてx人生存し、かつ白薔薇が生存すれば勝ち。'
+    },
+    {
+      name: '双刃',
+      images: ['双刃', '双刃', '霊魂'],
+      text: '双刃のカードを2枚持っている。'
+    },
+    {
+      name: '暗刃',
+      images: ['暗刃'],
+      text: ''
+    },
+    {
+      name: '巨刃',
+      images: ['巨刃'],
+      text: '',
+      dim: giantBladeDim,
+      count: giantBladeCount
+    }
+  ];
+
+  roleRows.forEach((row) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'role-row';
+
+    const stack = document.createElement('div');
+    stack.className = 'role-card-stack';
+    row.images.forEach((key, idx) => {
+      const card = document.createElement('div');
+      card.className = 'role-card-mini';
+      if (row.dim) card.classList.add('dim');
+      card.style.backgroundImage = `url('${ASSET.roleFront[key] || ''}')`;
+      if (row.count && idx === 0){
+        const badge = document.createElement('div');
+        badge.className = 'count-badge';
+        badge.textContent = String(row.count);
+        card.appendChild(badge);
+      }
+      stack.appendChild(card);
+    });
 
     const desc = document.createElement('div');
     desc.className = 'role-desc';
-    desc.innerHTML = `
-      <div class="name">${i}</div>
-      <div class="text">${(POWER_TEXT[i]||'').replaceAll('<','&lt;').replaceAll('>','&gt;')}</div>
-    `;
+    const nameEl = document.createElement('div');
+    nameEl.className = 'name';
+    nameEl.textContent = row.name;
+    const textEl = document.createElement('div');
+    textEl.className = 'text';
+    textEl.textContent = row.text;
+    desc.appendChild(nameEl);
+    desc.appendChild(textEl);
 
-    row.appendChild(card);
-    row.appendChild(desc);
-    helpBody.appendChild(row);
+    wrapper.appendChild(stack);
+    wrapper.appendChild(desc);
+    roleSection.appendChild(wrapper);
+  });
+
+  const effectSection = document.createElement('div');
+  effectSection.className = 'help-section';
+  const effectTitle = document.createElement('div');
+  effectTitle.className = 'help-section-title';
+  effectTitle.textContent = '1〜12 効果';
+  effectSection.appendChild(effectTitle);
+
+  const grid = document.createElement('div');
+  grid.className = 'help-effect-grid';
+  for (let i = 1; i <= 12; i++){
+    const card = document.createElement('div');
+    card.className = 'help-effect-card';
+
+    const num = document.createElement('div');
+    num.className = 'help-effect-num';
+    num.textContent = String(i);
+    const text = document.createElement('div');
+    text.className = 'help-effect-text';
+    text.textContent = POWER_TEXT[i] || '';
+
+    card.appendChild(num);
+    card.appendChild(text);
+    grid.appendChild(card);
   }
+  effectSection.appendChild(grid);
+
+  helpBody.appendChild(roleSection);
+  helpBody.appendChild(effectSection);
 }
 function openHelp(){ renderHelpList(); helpBackdrop.classList.remove('hidden'); }
 function closeHelp(){ helpBackdrop.classList.add('hidden'); }
@@ -3619,6 +3736,7 @@ async function maybeAutoPassWhenNoHand(){
   if (autoPassNoHandInFlight) return;
   if (!state.roomCode) return;
   if (!state.userId) return;
+
 
   const started = !!state.game?.started;
   const phase = state.game?.phase || 'collect';
