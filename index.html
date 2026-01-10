@@ -250,7 +250,7 @@
     position:absolute;
     inset:0;
     pointer-events:none;
-    z-index:5;
+    z-index:15;
   }
   .center-area .stack-card,
   .center-area .table-card,
@@ -3537,8 +3537,9 @@ function renderMyHand(){
 
 
   maybeAutoPassWhenNoHand();
-  if (started && handData && Array.isArray(handData.roleCards)) {
-    handData.roleCards.forEach((name, idx) => {
+  if (started && handData) {
+    const roleCards = Array.isArray(handData.roleCards) ? handData.roleCards : [];
+    roleCards.forEach((name, idx) => {
       const card = document.createElement('div');
       card.className = 'role-card';
       card.dataset.role = name;
