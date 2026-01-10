@@ -1476,7 +1476,7 @@
 <div id="helpBackdrop" class="help-pop-backdrop hidden">
   <div class="help-pop" role="dialog" aria-modal="true" aria-label="カード効果一覧">
     <div class="help-pop-header">
-      <div class="help-pop-title">1〜12 効果</div>
+      <div class="help-pop-title">カード一覧</div>
       <button id="btnHelpClose" class="btn ghost" style="padding:2px 6px;font-size:12px;">×</button>
     </div>
     <div class="help-pop-body" id="helpBody"></div>
@@ -1876,17 +1876,17 @@ function renderHelpList(){
     {
       name: '司教',
       images: ['司教'],
-      text: '司教と信者が合わせてx人生存し、かつ白薔薇が生存すれば勝ち。白薔薇と司教と双刃と巨刃はゲーム開始時に目を合わせる（具体的な正体までは知らない）。'
+      text: '司教と信者を合わせて特定の数が生存し、かつ白薔薇が生存すれば勝ち。白薔薇と司教と双刃と巨刃はゲーム開始時に目を合わせる（具体的な正体までは知らない）。'
     },
     {
       name: '信者',
       images: ['信者'],
-      text: '司教と信者が合わせてx人生存し、かつ白薔薇が生存すれば勝ち。'
+      text: '司教と信者を合わせて特定の数が生存し、かつ白薔薇が生存すれば勝ち。'
     },
     {
       name: '双刃',
       images: ['双刃', '双刃', '霊魂'],
-      text: '双刃のカードを2枚持っている。'
+      text: '双刃のカードを2枚持っている。白薔薇と司教と双刃と巨刃はゲーム開始時に目を合わせる（具体的な正体までは知らない）。'
     },
     {
       name: '暗刃',
@@ -1896,7 +1896,7 @@ function renderHelpList(){
     {
       name: '巨刃',
       images: ['巨刃'],
-      text: '',
+      text: '白薔薇と司教と双刃と巨刃はゲーム開始時に目を合わせる（具体的な正体までは知らない）。',
       dim: giantBladeDim,
       count: giantBladeCount
     }
