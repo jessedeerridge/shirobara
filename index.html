@@ -142,9 +142,7 @@
     background:rgba(255,255,255,.25);
     box-shadow:0 6px 16px rgba(0,0,0,.08);
   }
-.owncoin{
-  display: none;
-}
+
 
   .player-tag{
     position:relative;
@@ -787,15 +785,15 @@
     /* center-area と同じ平面感（強いオーバーレイにしない） */
     z-index:6;
 
-    background:rgba(255,255,255,.90);
-    border:1px solid #ddd;
+   background:transparent;
+    border:none;
     border-radius:12px;
 
     /* 浮いて見えないように影を弱く or なし */
     box-shadow:none;
 
     padding:0px;
-    width:60px;
+    width:200px;
     display:flex;
     flex-direction:column;
     gap:0px;
@@ -807,8 +805,8 @@
     width:100%;
     aspect-ratio:1 / 1;
     border-radius:12px;
-    border:1px dashed rgba(0,0,0,.25);
-    background:#fff;
+    border:none;
+    background:transparent;
     overflow:hidden;
   }
 
