@@ -235,11 +235,18 @@
   .player-tag .mini-hand-hit.active{ pointer-events:auto; }
 
   /* ===== 中央エリア（discardtable / shuffle / table並べ） ===== */
-  .center-area{
+ .center-area{
     position:absolute;
     inset:0;
     pointer-events:none;
     z-index:5;
+  }
+  .center-area .stack-card,
+  .center-area .table-card,
+  .center-area .shuffle-card,
+  .center-area .power-card{
+    color:transparent;
+    text-shadow:none;
   }
 
   /* ★ discardtable：中央に2x2の点線四角（場カード=60x90と同じ） */
@@ -1055,6 +1062,71 @@
   }
 }
 
+.slot-target-badge{
+  position:absolute;
+  right:6px;
+  top:6px;
+  width:22px;
+  height:22px;
+  border-radius:999px;
+  border:2px solid rgba(17,17,17,.85);
+  background:rgba(255,255,255,.85);
+  display:grid;
+  place-items:center;
+  font-weight:1000;
+  font-size:12px;
+  box-shadow:0 8px 18px rgba(0,0,0,.12);
+  pointer-events:none;
+  user-select:none;
+}
+
+/* =========================
+   ★追加：生存クリア演出（白薔薇拡大して3秒）
+   ========================= */
+.aliveclear-overlay{
+  position:fixed; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.10);
+  z-index:740;
+  pointer-events:none;
+}
+.aliveclear-overlay.hidden{display:none;}
+.aliveclear-card{
+  width:170px; height:255px;
+  border-radius:18px;
+  border:1px solid rgba(0,0,0,.22);
+  background:#fff;
+  background-size:cover;
+  background-position:center;
+  box-shadow:0 26px 70px rgba(0,0,0,.34);
+  transform:scale(.92);
+  opacity:0;
+}
+.aliveclear-overlay.play .aliveclear-card{
+  animation: aliveClearIn .22s ease-out both, aliveClearHold 3.0s linear .22s both;
+}
+@keyframes aliveClearIn{
+  from{ opacity:0; transform:scale(.88); }
+  to  { opacity:1; transform:scale(1.06); }
+}
+@keyframes aliveClearHold{
+  0%  { opacity:1; transform:scale(1.06); }
+  90% { opacity:1; transform:scale(1.06); }
+  100%{ opacity:0; transform:scale(1.02); }
+}
+
+/* =========================
+   ★追加：ゲームオーバー演出（白薔薇散り＋背面から暗刃）
+   ========================= */
+.gameover-overlay{
+  position:fixed; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.10);
+  z-index:760;
+  pointer-events:none;
+}
+.gameover-overlay.hidden{display:none;}
+
 
 
 </style>
@@ -1096,6 +1168,30 @@
     <div id="rbBlade" class="rb-blade" aria-hidden="true"></div>
     <div id="rbRose" class="rb-rose" aria-hidden="true"></div>
     <div id="rbPieces" class="rb-pieces" aria-hidden="true"></div>
+  </div>
+</div>
+
+
+<!-- ★追加：公開時「白薔薇＋刃」演出（全員） -->
+<div id="roseBladeOverlay" class="roseblade-overlay hidden" aria-hidden="true">
+  <div class="rb-stage">
+    <div id="rbBlade" class="rb-blade" aria-hidden="true"></div>
+    <div id="rbRose" class="rb-rose" aria-hidden="true"></div>
+    <div id="rbPieces" class="rb-pieces" aria-hidden="true"></div>
+  </div>
+</div>
+
+<!-- ★追加：生存クリア（白薔薇拡大3秒） -->
+<div id="aliveClearOverlay" class="aliveclear-overlay hidden" aria-hidden="true">
+  <div id="aliveClearCard" class="aliveclear-card" aria-hidden="true"></div>
+</div>
+
+<!-- ★追加：ゲームオーバー（白薔薇散り＋背面から暗刃） -->
+<div id="gameOverOverlay" class="gameover-overlay roseblade-overlay hidden" aria-hidden="true">
+  <div class="rb-stage">
+    <div id="goBlade" class="rb-blade" aria-hidden="true"></div>
+    <div id="goRose" class="rb-rose" aria-hidden="true"></div>
+    <div id="goPieces" class="rb-pieces" aria-hidden="true"></div>
   </div>
 </div>
 
@@ -1166,11 +1262,13 @@
           <!-- 左下：生存（信者/司教） -->
           <div class="discard-slot" data-slot="alive">
             <div class="slot-label">生存</div>
+            <div id="aliveTargetBadge" class="slot-target-badge">?</div>
             <div class="slot-stack" id="slotAlive"></div>
           </div>
           <!-- 右下：死亡（信者/司教） -->
           <div class="discard-slot" data-slot="dead">
             <div class="slot-label">死亡</div>
+            <div id="deadTargetBadge" class="slot-target-badge">?</div>
             <div class="slot-stack" id="slotDead"></div>
           </div>
         </div>
@@ -1414,6 +1512,19 @@ const slotBlade = document.getElementById('slotBlade');
 const slotAlive = document.getElementById('slotAlive');
 const slotDead  = document.getElementById('slotDead');
 
+const aliveTargetBadge = document.getElementById('aliveTargetBadge');
+const deadTargetBadge  = document.getElementById('deadTargetBadge');
+
+/* ★追加：生存クリア/ゲームオーバー演出 */
+const aliveClearOverlay = document.getElementById('aliveClearOverlay');
+const aliveClearCard = document.getElementById('aliveClearCard');
+
+const gameOverOverlay = document.getElementById('gameOverOverlay');
+const goRose = document.getElementById('goRose');
+const goBlade = document.getElementById('goBlade');
+const goPieces = document.getElementById('goPieces');
+
+
 const tableArea = document.getElementById('tableArea');
 const tableGrid = document.getElementById('tableGrid');
 
@@ -1457,6 +1568,155 @@ const POWER_TEXT = {
   11:"指定したプレイヤーのカードを\nランダムで一枚見る。",
   12:"カードを持っている人を指名する。\nその人に強制的にカードを出させる。"
 };
+
+function getPlayerCountForTargets(){
+  // 優先：ホストが選んだ maxPlayers（部屋設定）
+  const maxP = Number(state.room?.maxPlayers || 0);
+  if (maxP) return maxP;
+
+  // 次点：現在参加人数
+  const c = (state.players || []).length;
+  return c || 0;
+}
+
+function getTargetsByPlayerCount(){
+  const n = getPlayerCountForTargets();
+  return CLEAR_TARGETS[n] || null;
+}
+
+function updateTargetBadges(){
+  const t = getTargetsByPlayerCount();
+  if (!aliveTargetBadge || !deadTargetBadge){
+    return;
+  }
+  aliveTargetBadge.textContent = t ? String(t.alive) : '?';
+  deadTargetBadge.textContent  = t ? String(t.dead)  : '?';
+}
+
+/* discardデータからカード名配列を抽出（配列/オブジェクト両対応） */
+function extractCardNames(value){
+  if (!value) return [];
+  if (Array.isArray(value)){
+    return value.map(v => (typeof v === 'string' ? v : (v?.card ?? v?.name ?? null))).filter(Boolean);
+  }
+  if (typeof value === 'object'){
+    // {key:{card:"司教"}} / {0:"司教"} など
+    return Object.values(value).map(v => (typeof v === 'string' ? v : (v?.card ?? v?.name ?? null))).filter(Boolean);
+  }
+  return [];
+}
+
+function getDiscardCards(slotKey){
+  const d = state.discard || {};
+  return extractCardNames(d[slotKey]);
+}
+
+function countBelieverAndBishop(cards){
+  let n = 0;
+  for (const c of cards){
+    if (c === '司教' || c === '信者') n++;
+  }
+  return n;
+}
+
+/* ★生存クリア演出：白薔薇を中央拡大して3秒 */
+let aliveClearTimer = null;
+function playAliveClearRose3s(){
+  if (!aliveClearOverlay || !aliveClearCard) return;
+
+  aliveClearCard.style.backgroundImage = `url('${ASSET.roleFront["白薔薇"] || "bara.jpg"}')`;
+
+  aliveClearOverlay.classList.remove('hidden');
+  aliveClearOverlay.classList.remove('play');
+  void aliveClearOverlay.offsetWidth;
+  aliveClearOverlay.classList.add('play');
+
+  if (aliveClearTimer) clearTimeout(aliveClearTimer);
+  aliveClearTimer = setTimeout(() => {
+    aliveClearTimer = null;
+    aliveClearOverlay.classList.add('hidden');
+    aliveClearOverlay.classList.remove('play');
+  }, 3400); // in(0.22s)+hold(3.0s) ぶん余裕
+}
+
+/* ★ゲームオーバー演出：白薔薇散り＋背面から暗刃 */
+let gameOverTimer = null;
+function playGameOverRoseDarkBlade(){
+  if (!gameOverOverlay || !goRose || !goBlade || !goPieces) return;
+
+  goRose.style.backgroundImage  = `url('${ASSET.roleFront["白薔薇"] || "bara.jpg"}')`;
+  goBlade.style.backgroundImage = `url('${ASSET.roleFront["暗刃"] || "anjin.jpg"}')`;
+
+  // 破片生成（白薔薇）
+  goPieces.innerHTML = '';
+  const dirs = [
+    {dx:-120, dy:-95, rot:-26},{dx:-45, dy:-140, rot:16},
+    {dx: 55, dy:-135, rot:-12},{dx: 130, dy:-95, rot:22},
+    {dx:-145, dy: 30, rot:20},{dx:-70, dy: 135, rot:-20},
+    {dx: 78, dy: 140, rot:14},{dx: 150, dy: 35, rot:-22},
+  ];
+  for (let i=0;i<dirs.length;i++){
+    const p = document.createElement('div');
+    p.className = 'rb-piece';
+    p.style.backgroundImage = `url('${ASSET.roleFront["白薔薇"] || "bara.jpg"}')`;
+    p.style.setProperty('--dx', `${dirs[i].dx}px`);
+    p.style.setProperty('--dy', `${dirs[i].dy}px`);
+    p.style.setProperty('--rot', `${dirs[i].rot}deg`);
+    goPieces.appendChild(p);
+  }
+
+  // 再生（既存 rb アニメCSSをそのまま利用）
+  gameOverOverlay.classList.remove('hidden');
+  gameOverOverlay.classList.remove('play');
+  void gameOverOverlay.offsetWidth;
+  gameOverOverlay.classList.add('play');
+
+  if (gameOverTimer) clearTimeout(gameOverTimer);
+  gameOverTimer = setTimeout(() => {
+    gameOverTimer = null;
+    gameOverOverlay.classList.add('hidden');
+    gameOverOverlay.classList.remove('play');
+    goPieces.innerHTML = '';
+  }, 3000);
+}
+
+/* ★次ラウンドで配置後（discard更新後）に判定して演出 */
+function checkRoundEndConditionsAfterDiscardPlaced(){
+  const started = !!state.game?.started;
+  if (!started) return;
+
+  const round = Number(state.game?.round || 0);
+  if (!round) return;
+
+  const t = getTargetsByPlayerCount();
+  if (!t) return;
+
+  const aliveCards = getDiscardCards('alive');
+  const deadCards  = getDiscardCards('dead');
+
+  const aliveBD = countBelieverAndBishop(aliveCards);
+  const deadBD  = countBelieverAndBishop(deadCards);
+
+  const hasRoseInAlive = aliveCards.includes('白薔薇');
+
+  // ① 生存クリア数ぶん司教/信者が生存にいて、白薔薇が生存にある → 白薔薇拡大3秒
+  if (hasRoseInAlive && aliveBD >= t.alive){
+    if (lastAliveClearAnimRound !== round){
+      lastAliveClearAnimRound = round;
+      playAliveClearRose3s();
+    }
+  }
+
+  // ② 死亡者がゲームオーバー数に達した → 白薔薇散り＋背面暗刃
+  if (deadBD >= t.dead){
+    if (lastGameOverAnimRound !== round){
+      lastGameOverAnimRound = round;
+      playGameOverRoseDarkBlade();
+    }
+  }
+}
+
+
 
 function renderHelpList(){
   helpBody.innerHTML = '';
@@ -1516,6 +1776,18 @@ const ROLE_PRIORITY = {
   "霊魂": 7
 };
 const BLADE_SET = new Set(["双刃","暗刃","巨刃","大刃"]);
+
+const CLEAR_TARGETS = {
+  5:  { alive: 3, dead: 4 },
+  6:  { alive: 4, dead: 4 },
+  7:  { alive: 4, dead: 6 },
+  8:  { alive: 5, dead: 6 },
+  9:  { alive: 5, dead: 7 },
+  10: { alive: 6, dead: 7 }
+};
+
+let lastAliveClearAnimRound = 0;
+let lastGameOverAnimRound = 0;
 
 let pendingSeatIndexToSteal = null;
 let pendingSeatPlayerIdToSteal = null;
@@ -1688,6 +1960,8 @@ function subscribeRoom(){
     const waiting = (!state.isHost && !state.room.maxPlayers);
     hostSelectingPop.classList.toggle('hidden', !waiting);
     syncSeatUI();
+    updateTargetBadges();
+
   });
 }
 function subscribeHostState(){
@@ -1812,6 +2086,8 @@ function subscribeDiscard(){
   onValue(dRef, snap => {
     state.discard = snap.val() || {};
     renderDiscardTable();
+    updateTargetBadges();
+    checkRoundEndConditionsAfterDiscardPlaced();
   });
 }
 
