@@ -112,7 +112,7 @@
   .player-circle{
     position:relative;
     width:320px;height:320px;
-    margin:18px auto 0;
+    margin:70px auto 0;
     border-radius:50%;
     box-sizing:border-box;
     border:none;
@@ -126,6 +126,8 @@
     display:grid;
     place-items:center;
     user-select:none;
+    z-index: 10;
+
   }
   .owncoin{
     position:absolute;
@@ -323,6 +325,7 @@
     box-sizing:border-box;
     background-size:cover;
     background-position:center;
+
   }
   .stack-card.dead{
     box-shadow:0 10px 20px rgba(0,0,0,.16), 0 0 0 3px rgba(185,28,28,.22) inset;
@@ -383,6 +386,7 @@
     box-sizing:border-box;
     background-size:cover;
     background-position:center;
+
   }
   .table-card.pass{
     border:none;
@@ -803,10 +807,13 @@
   }
 
   /* ★プール内の実体コイン */
-  .coin{
+.coin{
     position:absolute;
     width:22px;height:22px;border-radius:50%;
-    background:linear-gradient(180deg,#fff,#eee);
+    /* 模様を消して画像に変更 */
+    background-image:url('baracoin.jpg');
+    background-size:cover;
+    background-position:center;
     border:1px solid rgba(0,0,0,.35);
     box-shadow:0 8px 16px rgba(0,0,0,.22);
     display:grid; place-items:center;
@@ -816,7 +823,45 @@
     user-select:none;
     touch-action:none;
     z-index:2;
-  }
+    /* テキストを非表示 */
+    color:transparent;
+}
+
+.coin:before{
+    content:'';
+    position:absolute;
+    inset:0;
+    border-radius:50%;
+    background:transparent;
+}
+
+.owned-coin-dot{
+    width:22px;height:22px;border-radius:50%;
+    border:1px solid rgba(0,0,0,.35);
+    /* 模様を消して画像に変更 */
+    background-image:url('baracoin.jpg');
+    background-size:cover;
+    background-position:center;
+    box-shadow:0 8px 16px rgba(0,0,0,.22);
+    display:grid;
+    place-items:center;
+    font-weight:1000;
+    font-size:12px;
+    color:#111;
+    cursor:grab;
+    user-select:none;
+    touch-action:none;
+    /* テキストを非表示 */
+    color:transparent;
+}
+.owned-coin-dot:before{
+    content:'';
+    position:absolute;
+    inset:0;
+    border-radius:50%;
+    background:transparent;
+}
+
   .coin:active{cursor:grabbing;}
   .coin.locked{opacity:.6; cursor:not-allowed; pointer-events:none;}
 
@@ -2364,6 +2409,20 @@ function isMyPower112Selectable(){
   return true;
 }
 
+// 他のプレイヤーの中で手札が1枚以上あるプレイヤーを数える関数
+function countOtherPlayersWithHands() {
+    let count = 0;
+    for (const p of (state.players || [])) {
+        if (p.id === state.userId) continue; // 自分は除外
+        if (hasLostCrystalChip(p.id)) continue; // 水晶チップを失っているプレイヤーは除外
+        if (getRoleCount(p.id) > 0) { // 手札が1枚以上
+            count++;
+        }
+    }
+    return count;
+}
+
+
 function getPower5State(){
   const p5 = state.game?.power5 || null;
   if (!p5) return null;
@@ -2380,17 +2439,23 @@ function isPower5SelectionLocked(){
   if (shownAt > playedAt) return false;
   return true;
 }
-function isPower5SelectionIncomplete(){
-  const started = !!state.game?.started;
-  const phase = state.game?.phase || 'collect';
-  if (!started || phase !== 'collect') return false;
-  const pd = state.game?.powerDisplay || null;
-  if (!pd || Number(pd.number) !== 5) return false;
-  const p5 = getPower5State();
-  if (!p5 || p5.ownerId !== pd.ownerId) return true;
-  const targets = Array.isArray(p5.targets) ? p5.targets : [];
-  return targets.length < 2;
+function isPower5SelectionIncomplete() {
+    const started = !!state.game?.started;
+    const phase = state.game?.phase || 'collect';
+    if (!started || phase !== 'collect') return false;
+    const pd = state.game?.powerDisplay || null;
+    if (!pd || Number(pd.number) !== 5) return false;
+    
+    // ★変更箇所：他プレイヤーの中で手札が1枚以上あるプレイヤーが2人以上いない場合はfalseを返す
+    // これにより、選択が完了していなくても提出をブロックしない
+    if (countOtherPlayersWithHands() < 2) return false;
+    
+    const p5 = getPower5State();
+    if (!p5 || p5.ownerId !== pd.ownerId) return true;
+    const targets = Array.isArray(p5.targets) ? p5.targets : [];
+    return targets.length < 2;
 }
+
 
 
 function isMyPlayLockedByPower5Pass(){
@@ -2411,13 +2476,17 @@ function isMyPlayLockedByPower5Waiting(){
   const firstPlay = state.plays?.[order.firstId] || null;
   return !firstPlay;
 }
-function isMyPower5Selectable(){
-  const started = !!state.game?.started;
-  const phase = state.game?.phase || 'collect';
-  if (!started || phase !== 'collect') return false;
-  if (!isMyPowerDisplay(5)) return false;
-  if (isPower5SelectionLocked()) return false;
-  return true;
+function isMyPower5Selectable() {
+    const started = !!state.game?.started;
+    const phase = state.game?.phase || 'collect';
+    if (!started || phase !== 'collect') return false;
+    if (!isMyPowerDisplay(5)) return false;
+    if (isPower5SelectionLocked()) return false;
+    
+    // ★変更箇所：他プレイヤーの中で手札が1枚以上あるプレイヤーが2人以上いない場合は選択不可
+    if (countOtherPlayersWithHands() < 2) return false;
+    
+    return true;
 }
 
 
@@ -2455,35 +2524,36 @@ function isSelectingOtherHandsNow(){
 
 
 /* ★選択モードUI：ミニ手札のパルス＆当たり判定 */
-function updateSelectModeUI(){
-  const selectingPower10 = isMyPower10Selecting();
-  const selectingOther = isMyPower11Selectable() || isMyPower112Selectable();
-  const selectingPower5 = isMyPower5Selectable();
+function updateSelectModeUI() {
+    const selectingPower10 = isMyPower10Selecting();
+    const selectingOther = isMyPower11Selectable() || isMyPower112Selectable();
+    const selectingPower5 = isMyPower5Selectable(); // 変更された関数を使用
 
-  for (const p of (state.players || [])){
-    if (p.id === state.userId) continue;
+    for (const p of (state.players || [])) {
+        if (p.id === state.userId) continue;
 
-    const miniHand = ui.miniHandByUserId.get(p.id);
-    const hit = ui.miniHandHitByUserId.get(p.id);
+        const miniHand = ui.miniHandByUserId.get(p.id);
+        const hit = ui.miniHandHitByUserId.get(p.id);
 
-    const hasCards = (getRoleCount(p.id) > 0);
-    const hasRolePlay = state.plays?.[p.id]?.kind === 'role';
-    let enable = false;
-    if (selectingPower10){
-      enable = hasCards && hasRolePlay;
-    } else if (selectingOther){
-      enable = hasCards;
-    } else if (selectingPower5){
-      enable = hasCards;
+        const hasCards = (getRoleCount(p.id) > 0);
+        const hasRolePlay = state.plays?.[p.id]?.kind === 'role';
+        let enable = false;
+        if (selectingPower10) {
+            enable = hasCards && hasRolePlay;
+        } else if (selectingOther) {
+            enable = hasCards;
+        } else if (selectingPower5) {
+            // ★変更箇所：hasCards と selectingPower5 の両方がtrueの場合のみ有効
+            enable = hasCards && selectingPower5;
+        }
+
+        if (miniHand) {
+            miniHand.classList.toggle('selectable', enable);
+        }
+        if (hit) {
+            hit.classList.toggle('active', enable);
+        }
     }
-
-    if (miniHand){
-      miniHand.classList.toggle('selectable', enable);
-    }
-    if (hit){
-      hit.classList.toggle('active', enable);
-    }
-  }
 }
 
 function hidePower10Confirm(){
@@ -3338,19 +3408,19 @@ function maybeFinishPower34Shuffle(){
    ★プレイ可能な手札なら大小アニメ
    （効果3/4で選べない人は playable を付けない）
    ========================= */
-function isRolePlayableNow(){
-  if (!state.game?.started) return false;
-  const phase = state.game?.phase || 'collect';
- if (phase !== 'collect'){
-    return isPower10ChangeAllowed();
-  }
-  if (isCoinOwnerChangeRequired()) return false;
-  if (isPower5SelectionIncomplete()) return false;
-  if (isEveryoneDecided()) return false;
-  if (isMyPlayLockedByPower34()) return false;
-  if (isMyPlayLockedByPower5Waiting()) return false;
-  if (isMyPlayLockedByPower5Pass()) return false;
-  return true;
+function isRolePlayableNow() {
+    if (!state.game?.started) return false;
+    const phase = state.game?.phase || 'collect';
+    if (phase !== 'collect') {
+        return isPower10ChangeAllowed();
+    }
+    if (isCoinOwnerChangeRequired()) return false;
+    if (isPower5SelectionIncomplete()) return false; // ここで変更された関数を使用
+    if (isEveryoneDecided()) return false;
+    if (isMyPlayLockedByPower34()) return false;
+    if (isMyPlayLockedByPower5Waiting()) return false;
+    if (isMyPlayLockedByPower5Pass()) return false;
+    return true;
 }
 
 function applyPlayableAnimToMyHand(){
@@ -3464,6 +3534,8 @@ function renderMyHand(){
   const handData = state.hands[myId];
   const started = !!state.game.started;
   const lostCrystal = hasLostCrystalChip(myId);
+
+
   maybeAutoPassWhenNoHand();
   if (started && handData && Array.isArray(handData.roleCards)) {
     handData.roleCards.forEach((name, idx) => {
