@@ -781,15 +781,64 @@
   .role-desc{flex:1 1 auto;}
   .role-desc .name{font-weight:1000;margin-bottom:4px;}
   .role-desc .text{font-size:13px;line-height:1.55;color:#222;white-space:pre-wrap;}
-  .help-effect-grid{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:8px;}
+ .help-effect-grid{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:8px;}
   .help-effect-card{
-    border:1px solid #e5e5e5;border-radius:12px;
-    padding:8px;background:#fff;box-shadow:0 4px 10px rgba(0,0,0,.04);
+    border:1px solid #111;border-radius:12px;
+    padding:8px;background:#111;box-shadow:0 4px 10px rgba(0,0,0,.04);
     display:flex;flex-direction:column;gap:4px;
   }
-  .help-effect-num{font-weight:900;font-size:14px;}
-  .help-effect-text{font-size:12px;line-height:1.4;white-space:pre-wrap;color:#222;}
+  .help-effect-num{font-weight:900;font-size:14px;color:#fff;}
+  .help-effect-text{font-size:12px;line-height:1.4;white-space:pre-wrap;color:#fff;}
 
+  /* ===== ラウンド提出表 ===== */
+  .round-play-wrapper{
+    margin:0 auto 16px;
+    padding:0 12px;
+    max-width:680px;
+  }
+  .round-play-title{
+    font-weight:900;
+    font-size:13px;
+    text-align:center;
+    margin-bottom:8px;
+  }
+  .round-play-table{
+    width:100%;
+    border-collapse:collapse;
+    background:rgba(255,255,255,.86);
+    border-radius:12px;
+    overflow:hidden;
+  }
+  .round-play-table th,
+  .round-play-table td{
+    border:1px solid #e5e5e5;
+    padding:6px;
+    text-align:center;
+    font-size:12px;
+  }
+  .round-play-name{
+    font-weight:800;
+    white-space:nowrap;
+  }
+  .round-play-cell{
+    width:28px;
+    height:38px;
+  }
+  .round-play-card-back{
+    width:16px;
+    height:23px;
+    margin:0 auto;
+    border-radius:4px;
+    background-size:cover;
+    background-position:center;
+    box-shadow:0 6px 12px rgba(0,0,0,.18);
+  }
+  .round-play-pass{
+    font-size:22px;
+    font-weight:900;
+    color:#b91c1c;
+    line-height:1;
+  }
   /* ===== コインプール（右上） ===== */
   /* ===== コインプール（右上・ゲーム画面と同じレイヤー） ===== */
   .coin-pool{
@@ -1543,6 +1592,7 @@ const state = {
   hands: {},
   game: {},
   plays: {},
+  roundPlays: {},
   discard: {},
 
   coins: {},
@@ -1623,6 +1673,8 @@ const spiritCard = document.getElementById('spiritCard');
 
 const coinPool = document.getElementById('coinPool');
 const coinPoolInner = document.getElementById('coinPoolInner');
+let roundPlayWrapper = null;
+let roundPlayTable = null;
 
 const discardTable = document.getElementById('discardTable');
 const slotRose  = document.getElementById('slotRose');
@@ -1855,6 +1907,24 @@ function getHelpPlayerCount(){
 }
 function renderHelpList(){
   helpBody.innerHTML = '';
+
+  const roundWrapper = document.createElement('div');
+  roundWrapper.className = 'round-play-wrapper';
+  roundWrapper.id = 'roundPlayWrapper';
+  const roundTitle = document.createElement('div');
+  roundTitle.className = 'round-play-title';
+  roundTitle.textContent = 'ラウンド提出表';
+  const roundTable = document.createElement('table');
+  roundTable.className = 'round-play-table';
+  roundTable.id = 'roundPlayTable';
+  roundTable.setAttribute('aria-label', 'ラウンド提出表');
+  roundWrapper.appendChild(roundTitle);
+  roundWrapper.appendChild(roundTable);
+  helpBody.appendChild(roundWrapper);
+
+  roundPlayWrapper = roundWrapper;
+  roundPlayTable = roundTable;
+  renderRoundPlayTable();
 
   const roleSection = document.createElement('div');
   roleSection.className = 'help-section';
@@ -2295,6 +2365,13 @@ function subscribePlays(){
     maybeFinishPower34Shuffle();
   });
 
+}
+function subscribeRoundPlays(){
+  const roundPlaysRef = ref(db, `rooms/${state.roomCode}/roundPlays`);
+  onValue(roundPlaysRef, snap => {
+    state.roundPlays = snap.val() || {};
+    renderRoundPlayTable();
+  });
 }
 function subscribeCoins(){
   const coinsRef = ref(db, `rooms/${state.roomCode}/coins`);
@@ -3346,7 +3423,7 @@ async function executePower34Now(ctx){
   const forcedSeat = (state.players || []).find(p => p.id === ctx.forcedUid)?.seatIndex || 0;
 
   try{
-    await set(ref(db, `${base}/plays/${ctx.forcedUid}`), {
+   await set(ref(db, `${base}/plays/${ctx.forcedUid}`), {
       kind: 'role',
       card: finalPick,
       seatIndex: forcedSeat,
@@ -3632,6 +3709,7 @@ async function maybeClearCoinOwnerChangeLock(newOwnerId){
 
 function renderHands(){
   renderMyHand();
+  renderRoundPlayTable();
   if (state.players.length) renderPlayerCircle(state.players);
   renderPlays();
   renderCoins();
@@ -3643,6 +3721,74 @@ function renderHands(){
   renderPower11Arrow();
   renderPower5Link();
 }
+
+function renderRoundPlayTable(){
+  if (!roundPlayWrapper || !roundPlayTable) return;
+
+  const players = state.players || [];
+  const roundCount = players.length;
+  if (!roundCount){
+    roundPlayWrapper.classList.add('hidden');
+    roundPlayTable.innerHTML = '';
+    return;
+  }
+
+  roundPlayWrapper.classList.remove('hidden');
+  roundPlayTable.innerHTML = '';
+
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  const nameTh = document.createElement('th');
+  nameTh.textContent = '名前';
+  headRow.appendChild(nameTh);
+
+  for (let r = 1; r <= roundCount; r += 1){
+    const th = document.createElement('th');
+    th.textContent = `R${r}`;
+    headRow.appendChild(th);
+  }
+  thead.appendChild(headRow);
+
+  const tbody = document.createElement('tbody');
+  const roundData = state.roundPlays || {};
+
+  players.forEach(player => {
+    const row = document.createElement('tr');
+    const nameCell = document.createElement('td');
+    nameCell.className = 'round-play-name';
+    nameCell.textContent = player.name || '名無し';
+    row.appendChild(nameCell);
+
+    for (let r = 1; r <= roundCount; r += 1){
+      const cell = document.createElement('td');
+      cell.className = 'round-play-cell';
+      const roundKey = String(r);
+      const play = roundData?.[roundKey]?.[player.id] || null;
+
+      if (play && play.kind === 'role'){
+        const back = document.createElement('div');
+        back.className = 'round-play-card-back';
+        if (play.card && play.revealed){
+          back.style.backgroundImage = `url('${ASSET.roleFront[play.card] || ''}')`;
+        } else {
+          back.style.backgroundImage = `url('${ASSET.roleBack}')`;
+        }
+        cell.appendChild(back);
+      } else if (play && play.kind === 'pass'){
+        const mark = document.createElement('div');
+        mark.className = 'round-play-pass';
+        mark.textContent = '✕';
+        cell.appendChild(mark);
+      }
+      row.appendChild(cell);
+    }
+    tbody.appendChild(row);
+  });
+
+  roundPlayTable.appendChild(thead);
+  roundPlayTable.appendChild(tbody);
+}
+
 
 function renderMyHand(){
   myHandEl.innerHTML = '';
@@ -3825,6 +3971,7 @@ btnJoin.addEventListener('click', async () => {
   subscribeHands();
   subscribeGame();
   subscribePlays();
+  subscribeRoundPlays();
   subscribeCoins();
   subscribeDiscard();
 
@@ -3973,6 +4120,7 @@ function subscribePlayers(){
     updatePowerBanner();
     updatePower7UI();
     renderMyHand();
+    renderRoundPlayTable();
 
     maybeHostAdvanceRound();
     applyPlayableAnimToMyHand();
@@ -4469,11 +4617,13 @@ async function startGameDeal(){
   await Promise.all([
     set(ref(db, `${base}/hands`), hands),
     set(ref(db, `${base}/plays`), null),
+    set(ref(db, `${base}/roundPlays`), null),
     set(ref(db, `${base}/coins`), coins),
     set(ref(db, `${base}/discard`), discard),
     update(ref(db, `${base}/game`), {
       started: true,
-      round: (state.game.round || 0) + 1,
+      round: 1,
+
       phase: "collect",
       powerDisplay: null,
       power7: null,
@@ -4940,6 +5090,7 @@ btnNextRound.addEventListener('click', async () => {
   const game = gameSnap.val() || {};
   const list = Array.isArray(game.tableList) ? game.tableList : [];
   const round = Number(game.round || 1);
+  const isRevealRound = (phase === 'reveal2');
 
   const coinSnap = await get(ref(db, `${base}/coins/${COIN_ID}`));
   const coin = coinSnap.val() || {};
@@ -4973,11 +5124,28 @@ btnNextRound.addEventListener('click', async () => {
       continue;
     }
 
-    if (card === '司教' || card === '信者'){
+   if (card === '司教' || card === '信者'){
       const dead = !!bladePlayed;
       if (dead) toDead.push({ kind:'role', card, round, addedAt: Date.now() });
       else toAlive.push({ kind:'role', card, round, addedAt: Date.now() });
       continue;
+    }
+  }
+
+  const roundPlays = {};
+  for (const it of list){
+    if (!it || !it.uid) continue;
+    if (it.kind === 'pass'){
+      roundPlays[it.uid] = { kind: 'pass', recordedAt: Date.now() };
+      continue;
+    }
+    if (it.kind === 'role'){
+      const entry = { kind: 'role', recordedAt: Date.now() };
+      if (isRevealRound && it.card){
+        entry.card = it.card;
+        entry.revealed = true;
+      }
+      roundPlays[it.uid] = entry;
     }
   }
 
@@ -4998,6 +5166,7 @@ btnNextRound.addEventListener('click', async () => {
 
   await Promise.all([
    set(ref(db, `${base}/plays`), null),
+    set(ref(db, `${base}/roundPlays/${round}`), roundPlays),
     update(ref(db, `${base}/game`), {
       round: round + 1,
       phase: 'collect',
@@ -5100,6 +5269,7 @@ function isOverDiscardTable(x, y){
   const r = discardTable.getBoundingClientRect();
   return (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom);
 }
+
 
 let isSettingMyPlay = false;
 async function setMyPlay({ kind, cardName=null }){
@@ -5702,6 +5872,7 @@ btnResetRoom.addEventListener('click', async () => {
     set(ref(db, `${base}/tables`), null),
     set(ref(db, `${base}/hands`), null),
     set(ref(db, `${base}/plays`), null),
+    set(ref(db, `${base}/roundPlays`), null),
     set(ref(db, `${base}/coins`), null),
     set(ref(db, `${base}/discard`), null),
     update(ref(db, `${base}/game`), {
