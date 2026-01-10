@@ -3656,6 +3656,8 @@ function renderMyHand(){
   maybeAutoPassWhenNoHand();
   if (started && handData) {
     const roleCards = Array.isArray(handData.roleCards) ? handData.roleCards : [];
+    const hasRoleCards = roleCards.length > 0;
+    const hasPlayedRoleThisRound = state.plays?.[myId]?.kind === 'role';
     roleCards.forEach((name, idx) => {
       const card = document.createElement('div');
       card.className = 'role-card';
@@ -3692,6 +3694,7 @@ function renderMyHand(){
 
     // ★出さない（✕）カード：効果8 / 効果1&12 で「非表示」になる
     const passShouldShow =
+      (hasRoleCards || hasPlayedRoleThisRound) &&
       !isPassHiddenForUid(myId) &&
       !isPower10ChangeAllowed(myId) &&
       !isPower5SelectionIncomplete() &&
@@ -3734,8 +3737,10 @@ function renderMyHand(){
 let autoPassNoHandInFlight = false;
 async function maybeAutoPassWhenNoHand(){
   if (autoPassNoHandInFlight) return;
+  if (isSettingMyPlay) return;
   if (!state.roomCode) return;
   if (!state.userId) return;
+
 
 
   const started = !!state.game?.started;
@@ -5096,9 +5101,11 @@ function isOverDiscardTable(x, y){
   return (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom);
 }
 
+let isSettingMyPlay = false;
 async function setMyPlay({ kind, cardName=null }){
   if (!state.roomCode) return;
   if (!state.game.started) return;
+
 
   const phase = state.game.phase || 'collect';
   const power10Allowed = isPower10ChangeAllowed();
@@ -5123,41 +5130,46 @@ async function setMyPlay({ kind, cardName=null }){
   const newIsRole = (kind === 'role');
   const oldIsRole = (old && old.kind === 'role' && old.card);
 
-  const tx = await runTransaction(roleRef, (current) => {
-    let arr = Array.isArray(current) ? [...current] : [];
-    if (oldIsRole && !arr.includes(old.card)) arr.push(old.card);
-    if (newIsRole){
-      const idx = arr.indexOf(cardName);
-      if (idx === -1) return;
+  isSettingMyPlay = true;
+  try {
+    const tx = await runTransaction(roleRef, (current) => {
+      let arr = Array.isArray(current) ? [...current] : [];
+      if (oldIsRole && !arr.includes(old.card)) arr.push(old.card);
+      if (newIsRole){
+        const idx = arr.indexOf(cardName);
+        if (idx === -1) return;
 
-      arr.splice(idx, 1);
-    }
-    return arr;
-  });
-
-  if (!tx.committed) return;
-
-  const seatIndex = state.seatedTable || 0;
-  await set(ref(db, `rooms/${state.roomCode}/plays/${uid}`), {
-    kind: newIsRole ? 'role' : 'pass',
-    card: newIsRole ? cardName : null,
-    seatIndex,
-    playedAt: Date.now()
-  });
-
-  if (power10Allowed){
-    await runTransaction(ref(db, `rooms/${state.roomCode}/game/power10`), (cur) => {
-      const c = cur || {};
-      if (c.status !== 'awaiting-change') return c;
-      if (c.targetId !== uid) return c;
-      if (c.changeDone) return c;
-      return {
-        ...c,
-        status: 'done',
-        changeDone: true,
-        changedAt: Date.now()
-      };
+        arr.splice(idx, 1);
+      }
+      return arr;
     });
+
+    if (!tx.committed) return;
+
+    const seatIndex = state.seatedTable || 0;
+    await set(ref(db, `rooms/${state.roomCode}/plays/${uid}`), {
+      kind: newIsRole ? 'role' : 'pass',
+      card: newIsRole ? cardName : null,
+      seatIndex,
+      playedAt: Date.now()
+    });
+
+    if (power10Allowed){
+      await runTransaction(ref(db, `rooms/${state.roomCode}/game/power10`), (cur) => {
+        const c = cur || {};
+        if (c.status !== 'awaiting-change') return c;
+        if (c.targetId !== uid) return c;
+        if (c.changeDone) return c;
+        return {
+          ...c,
+          status: 'done',
+          changeDone: true,
+          changedAt: Date.now()
+        };
+      });
+    }
+  } finally {
+    isSettingMyPlay = false;
   }
 }
 
