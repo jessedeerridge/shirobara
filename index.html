@@ -39,7 +39,7 @@
     left:50%;
     top:60px;
     transform:translateX(-50%);
-    width:min(640px, calc(100% - 24px));
+    width:min(300px, calc(100% - 24px));
     background:rgba(20,20,20,.92);
     color:#fff;
     border-radius:14px;
@@ -61,15 +61,7 @@
     background:rgba(255,255,255,.08);
   }
   .power-banner-body{flex:1 1 auto;min-width:0;}
-  .power-banner-title{
-    font-weight:1000;
-    font-size:13px;
-    opacity:.9;
-    margin-bottom:2px;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-  }
+
   .power-banner-text{
     font-weight:900;
     font-size:13px;
@@ -138,9 +130,9 @@
   .owncoin{
     position:absolute;
     width:54px;height:54px;border-radius:50%;
-    border:2px solid rgba(17,17,17,.55);
-    background:rgba(255,255,255,.25);
-    box-shadow:0 6px 16px rgba(0,0,0,.08);
+    border:transparent;
+    background:transparent;
+    box-shadow:transparent;
   }
 
 
@@ -610,7 +602,7 @@
     flex:0 0 auto;
   }
   .power-pop{
-    width:220px;
+    width:280px;
     height:64px;
     border-radius:14px;
     background:rgba(20,20,20,.92);
@@ -1201,7 +1193,6 @@
 <div id="powerBanner" class="power-banner hidden" aria-live="polite">
   <div id="powerBannerNum" class="power-banner-num">?</div>
   <div class="power-banner-body">
-    <div id="powerBannerTitle" class="power-banner-title">—</div>
     <div id="powerBannerText" class="power-banner-text"></div>
   </div>
 </div>
@@ -1560,7 +1551,6 @@ const btnPower10SkipYes = document.getElementById('btnPower10SkipYes');
 
 const powerBanner = document.getElementById('powerBanner');
 const powerBannerNum = document.getElementById('powerBannerNum');
-const powerBannerTitle = document.getElementById('powerBannerTitle');
 const powerBannerText = document.getElementById('powerBannerText');
 
 const spiritOverlay = document.getElementById('spiritOverlay');
@@ -1620,14 +1610,14 @@ const rbPieces = document.getElementById('rbPieces');
 const POWER_TEXT = {
   1: "カードを持っている人を指名する。\nその人に強制的にカードを出させる。",
   2: "このラウンドに出されたカードは、\nラウンドの最後に誰が何を出したかわかる。",
-  3: "【手順は場が時計回り】\n自分が3のownplayerのとき、影響を受けるのは「逆の人」。\nその「逆の人」は自分で選べない。\nさらにその向こう（逆の人の時計回りの隣）が「出す／出さない」を決めた瞬間にトリガー。\nトリガーから6秒後、逆の人は手札からランダムに1枚を強制提出する。\n（ただし6秒以内に逆の人が自分の手札を1回でもクリックしたら即実行）\n（逆の人の手札が0なら何も起きない）",
-  4: "【手順は場が時計回り】\n自分が4のownplayerのとき、自分が「出す／出さない」を決めた瞬間にトリガー。\nトリガーから6秒後、次（右）のプレイヤーは手札からランダムに1枚を強制提出する。\n（ただし6秒以内に対象プレイヤーが自分の手札を1回でもクリックしたら即実行）\n（そのプレイヤーの手札が0なら何も起きない）",
+  3: "右隣りのプレイヤーはカードがあるなら、ランダムでカードを出す。",
+  4: "左隣りのプレイヤーはカードがあるなら、ランダムでカードを出す。",
   5: "指名した二人は必ず同じ行動を行う。\n（後の人が先の人をまねる。）",
   6: "全員がカードを出し終わった後に、\n自分がカードを出すかどうか決められる。",
   7: "あなたが指名した人は幽魂一枚を得る。",
   8: "左右のプレイヤーは、カードがあれば\n必ず出さなければならない。",
   9: "暗刃の者以外は目を閉じ、\n白薔薇と司教の二人は身分を明かさずに手をあげる。",
-  10:"全員がカードを出し終わった後に、一人指名する。\nその人は出したカードを違うカードと交換する。",
+  10:"全員がカードを出し終わった後に、一人選ぶ。\nその人は出したカードを違うカードと交換する。",
   11:"指定したプレイヤーのカードを\nランダムで一枚見る。",
   12:"カードを持っている人を指名する。\nその人に強制的にカードを出させる。"
 };
@@ -3385,7 +3375,6 @@ function updatePowerBanner(){
   const ownerName = (state.players || []).find(p => p.id === ownerId)?.name || '誰か';
 
   powerBannerNum.textContent = (Number.isFinite(number) ? String(number) : '?');
-  powerBannerTitle.textContent = `${ownerName} の効果`;
   powerBannerText.textContent = POWER_TEXT[number] || '';
 }
 
@@ -3475,7 +3464,7 @@ function renderMyHand(){
   const handData = state.hands[myId];
   const started = !!state.game.started;
   const lostCrystal = hasLostCrystalChip(myId);
-
+  maybeAutoPassWhenNoHand();
   if (started && handData && Array.isArray(handData.roleCards)) {
     handData.roleCards.forEach((name, idx) => {
       const card = document.createElement('div');
@@ -3551,6 +3540,37 @@ function renderMyHand(){
 
   applyPlayableAnimToMyHand();
 }
+
+let autoPassNoHandInFlight = false;
+async function maybeAutoPassWhenNoHand(){
+  if (autoPassNoHandInFlight) return;
+  if (!state.roomCode) return;
+  if (!state.userId) return;
+
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'collect') return;
+
+  if (state.plays?.[state.userId]) return;
+
+  const handData = state.hands?.[state.userId];
+  const roleCards = (handData && Array.isArray(handData.roleCards)) ? handData.roleCards : [];
+  if (roleCards.length > 0) return;
+
+  autoPassNoHandInFlight = true;
+  try {
+    const seatIndex = state.seatedTable || 0;
+    await set(ref(db, `rooms/${state.roomCode}/plays/${state.userId}`), {
+      kind: 'pass',
+      card: null,
+      seatIndex,
+      playedAt: Date.now()
+    });
+  } finally {
+    autoPassNoHandInFlight = false;
+  }
+}
+
 
 function fitTextToBox(spanEl, maxPx=14, minPx=9){
   if (!spanEl) return;
@@ -4287,6 +4307,19 @@ function renderPlays(){
   updatePlayedCardAngles();
 
 }
+
+let resizeRaf = null;
+function handleViewportResize(){
+  if (resizeRaf){
+    cancelAnimationFrame(resizeRaf);
+  }
+  resizeRaf = requestAnimationFrame(() => {
+    resizeRaf = null;
+    renderPlays();
+    renderCoins();
+  });
+}
+window.addEventListener('resize', handleViewportResize);
 
 function hashToNumber(str){
   let h = 0;
