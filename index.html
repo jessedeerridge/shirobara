@@ -30,8 +30,8 @@
     background-position:center;
     background-repeat:no-repeat;
   }
-  main.prejoin{ background-image:url('maemain.jpg'); }
-  main.joined{ background-image:url('maingazo.jpg'); }
+  main.prejoin{ background-image:url('sirobaramain.jpg'); }
+  main.joined{ background-image:url('sirobaramain.jpg'); }
 
   /* ★ 上部：コイン所有表示（公開（table/reveal2）まで表示） */
   .power-banner{
@@ -584,13 +584,12 @@
   .pass-card:active{ transform:translateY(1px); }
 
   .drag-ghost{
-    position:fixed;
+    position:absolute;
     z-index:9999;
     pointer-events:none;
     transform:translate(-50%,-50%);
     opacity:.95;
   }
-
   /* ===== 小さい黒カード(1-12) ＋ 黒ポップ ===== */
   .power-wrapper{
     margin-top:14px;
@@ -795,27 +794,21 @@
     /* 浮いて見えないように影を弱く or なし */
     box-shadow:none;
 
-    padding:10px;
-    width:184px;
+    padding:0px;
+    width:60px;
     display:flex;
     flex-direction:column;
-    gap:8px;
+    gap:0px;
   }
   .coin-pool.hidden{display:none;}
   .coin-pool.hidden{display:none;}
-  .coin-pool-title{
-    font-size:12px;
-    font-weight:1000;
-    opacity:.7;
-    letter-spacing:.06em;
-  }
   .coin-pool-inner{
     position:relative;
     width:100%;
     aspect-ratio:1 / 1;
     border-radius:12px;
     border:1px dashed rgba(0,0,0,.25);
-    background:rgba(250,250,250,.7);
+    background:#fff;
     overflow:hidden;
   }
 
@@ -1345,11 +1338,8 @@
     </div>
 
 <div id="coinPool" class="coin-pool hidden">
-  <div class="coin-pool-title">COIN POOL</div>
   <div id="coinPoolInner" class="coin-pool-inner"></div>
 </div>
-
-
     <div class="my-hand-wrapper">
       <div class="my-hand-title">自分のカード</div>
       <div id="myHand" class="my-hand"></div>
@@ -1543,6 +1533,14 @@ const btnGameStart = document.getElementById('btnGameStart');
 const btnResetRoom = document.getElementById('btnResetRoom');
 
 const helpBtn = document.getElementById('helpBtn');
+
+function clientToMainCoords(clientX, clientY){
+  const rect = mainEl.getBoundingClientRect();
+  return {
+    x: clientX - rect.left + mainEl.scrollLeft,
+    y: clientY - rect.top + mainEl.scrollTop
+  };
+}
 const helpBackdrop = document.getElementById('helpBackdrop');
 const btnHelpClose = document.getElementById('btnHelpClose');
 const helpBody = document.getElementById('helpBody');
@@ -4340,6 +4338,7 @@ function renderPlayedMarkers(){
   const discardRect = discardTable.getBoundingClientRect();
   const shuffleX = discardRect.left + discardRect.width/2;
   const shuffleY = discardRect.top + discardRect.height/2;
+  const shufflePoint = clientToMainCoords(shuffleX, shuffleY);
 
   for (const uid of Object.keys(plays)){
     const p = plays[uid];
@@ -4357,6 +4356,8 @@ function renderPlayedMarkers(){
     const y = centerY + (tagCY - centerY) * t;
 
     let marker = ui.playedBackByUserId.get(uid);
+    const point = clientToMainCoords(x, y);
+
 
     const wantKind = (p.kind === 'pass') ? 'pass' : (isReveal2 ? 'front' : 'role');
     const haveKind = marker?.dataset?.kind || null;
@@ -4395,22 +4396,22 @@ function renderPlayedMarkers(){
         marker.appendChild(bk);
       }
 
-      document.body.appendChild(marker);
+     mainEl.appendChild(marker);
       ui.playedBackByUserId.set(uid, marker);
     }
 
-    marker.style.left = `${x}px`;
-    marker.style.top  = `${y}px`;
+    marker.style.left = `${point.x}px`;
+    marker.style.top  = `${point.y}px`;
 
     if (isShuffle){
       setShuffleVars(marker, uid);
       marker.classList.add('shuffling');
-      marker.style.left = `${shuffleX}px`;
-      marker.style.top  = `${shuffleY}px`;
+      marker.style.left = `${shufflePoint.x}px`;
+      marker.style.top  = `${shufflePoint.y}px`;
     } else {
       marker.classList.remove('shuffling');
-      marker.style.left = `${x}px`;
-      marker.style.top  = `${y}px`;
+      marker.style.left = `${point.x}px`;
+      marker.style.top  = `${point.y}px`;
     }
 
     if (p.kind === 'pass'){
@@ -4824,7 +4825,7 @@ function startDragCard(e, payload){
 
   const ghost = target.cloneNode(true);
   ghost.classList.add('drag-ghost');
-  document.body.appendChild(ghost);
+  mainEl.appendChild(ghost);
 
   drag = {
     ghost,
@@ -4863,8 +4864,9 @@ function startDragCard(e, payload){
 
 function moveGhost(x, y){
   if (!drag) return;
-  drag.ghost.style.left = `${x}px`;
-  drag.ghost.style.top  = `${y}px`;
+  const point = clientToMainCoords(x, y);
+  drag.ghost.style.left = `${point.x}px`;
+  drag.ghost.style.top  = `${point.y}px`;
 }
 
 function isOverDiscardTable(x, y){
@@ -5023,8 +5025,9 @@ function canTransferCoinTo(targetUid, prevOwnerId){
 function moveCoinGhost(x, y){
   const g = coinDrag?.ghost;
   if (!g) return;
-  g.style.left = `${x}px`;
-  g.style.top  = `${y}px`;
+  const point = clientToMainCoords(x, y);
+  g.style.left = `${point.x}px`;
+  g.style.top  = `${point.y}px`;
 }
 
 async function ensurePower7StateIfNeeded(ownerId, number){
@@ -5136,7 +5139,7 @@ function startDragCoinFromPool(e){
 
   const ghost = realEl.cloneNode(true);
   ghost.classList.add('drag-ghost');
-  document.body.appendChild(ghost);
+  mainEl.appendChild(ghost);
 
   realEl.style.opacity = '0.25';
 
@@ -5266,8 +5269,7 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
 
   const ghost = srcEl.cloneNode(true);
   ghost.classList.add('drag-ghost');
-  document.body.appendChild(ghost);
-
+  mainEl.appendChild(ghost);
   srcEl.style.opacity = '0.25';
 
   const prevState = {
@@ -5380,10 +5382,10 @@ let spiritDrag = null;
 function moveSpiritGhost(x, y){
   const g = spiritDrag?.ghost;
   if (!g) return;
-  g.style.left = `${x}px`;
-  g.style.top  = `${y}px`;
+  const point = clientToMainCoords(x, y);
+  g.style.left = `${point.x}px`;
+  g.style.top  = `${point.y}px`;
 }
-
 function startDragSpirit(e){
   const started = !!state.game?.started;
   const phase = state.game?.phase || 'collect';
@@ -5402,7 +5404,7 @@ function startDragSpirit(e){
 
   const ghost = spiritCard.cloneNode(true);
   ghost.classList.add('drag-ghost');
-  document.body.appendChild(ghost);
+  mainEl.appendChild(ghost);
 
   spiritCard.style.opacity = '0.25';
   spiritDrag = { pointerId, ghost };
