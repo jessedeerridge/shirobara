@@ -142,6 +142,9 @@
     background:rgba(255,255,255,.25);
     box-shadow:0 6px 16px rgba(0,0,0,.08);
   }
+.owncoin{
+  display: none;
+}
 
   .player-tag{
     position:relative;
@@ -193,11 +196,27 @@
     left:calc(50% - 40px);
     top:100%;
     transform:translate(-50%,10px);
-    width:10px;height:12px;
-    border-radius:2px;
-    background:#111;
+
+    /* ★変更：画像が見えるよう少し大きめに（必要なら戻してOK） */
+    width:11px;
+    height:14px;
+
+    border-radius:3px;
+
+    /* ★変更：cys.jpg */
+    background-image:url('cys.jpg');
+    background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
+
+    /* 画像が暗くならないよう、元の黒塗りは消す */
+    background-color:transparent;
+
     box-shadow:0 2px 6px rgba(0,0,0,.25);
     pointer-events:none;
+
+    /* ★center-area(5)より前 */
+    z-index: 120;
   }
   .player-tag .mini-hand-square.hidden{display:none;}
   .player-tag .mini-card{
@@ -344,14 +363,14 @@
   .table-area{
     position:absolute;
     left:50%; top:50%;
-    transform:translate(-50%,-50%);
+    transform:translate(-50%,-50%) translateY(15px);
     width:min(320px, calc(100% - 40px));
     display:none;
   }
   .table-area.show{display:block;}
   .table-grid{
     display:grid;
-    grid-template-columns:repeat(4, var(--field-w));
+    grid-template-columns:repeat(3, var(--field-w));
     gap:10px;
     justify-content:center;
     align-content:center;
@@ -382,7 +401,9 @@
     font-size:30px;
     color:#b91c1c;
   }
-
+.table-card.pass{
+  display: none !important;
+}
   /* 提出した裏面ミニカード（プレイヤー→中央方向に表示） */
   .played-back{
     position:absolute;
@@ -400,9 +421,14 @@
     transition: left 0.45s ease, top 0.45s ease, transform 0.45s ease;
     will-change: left, top, transform;
   }
-  .played-back.shuffling,
-  .played-x.shuffling{
+  /* ★更新：シャッフル時はカードだけアニメ、✕は消す */
+  .played-back.shuffling{
     animation: miniShuffle 1s ease-in-out both;
+  }
+  .played-x.shuffling{
+    /* シャッフル中はその場でフェードアウトして消えるだけ */
+    opacity:0;
+    transform:translate(-50%,-50%);
   }
   @keyframes miniShuffle{
     0%{
@@ -752,20 +778,30 @@
   .role-desc .text{font-size:13px;line-height:1.55;color:#222;white-space:pre-wrap;}
 
   /* ===== コインプール（右上） ===== */
+  /* ===== コインプール（右上・ゲーム画面と同じレイヤー） ===== */
   .coin-pool{
-    position:fixed;
-    right:12px; top:64px;
-    z-index:260;
-    background:rgba(255,255,255,.92);
+    /* main 内のロビー(#lobby)を基準に固定 */
+    position:absolute;
+    top:16px;
+    right:16px;
+
+    /* center-area と同じ平面感（強いオーバーレイにしない） */
+    z-index:6;
+
+    background:rgba(255,255,255,.90);
     border:1px solid #ddd;
-    border-radius:14px;
-    box-shadow:0 14px 30px rgba(0,0,0,.18);
+    border-radius:12px;
+
+    /* 浮いて見えないように影を弱く or なし */
+    box-shadow:none;
+
     padding:10px;
     width:184px;
     display:flex;
     flex-direction:column;
     gap:8px;
   }
+  .coin-pool.hidden{display:none;}
   .coin-pool.hidden{display:none;}
   .coin-pool-title{
     font-size:12px;
@@ -1064,24 +1100,37 @@
 
 .slot-target-badge{
   position:absolute;
-  right:6px;
-  top:6px;
+  right:-6px;
+  top:-6px;
+
   width:22px;
   height:22px;
   border-radius:999px;
-  border:2px solid rgba(17,17,17,.85);
-  background:rgba(255,255,255,.85);
+
+  /* ★細い枠（主張しすぎない） */
+  border:1px solid rgba(17,17,17,.25);
+
+  /* ★透けて見える背景（ぼかし無し） */
+  background:rgba(255,255,255,.08);
+  color:rgba(17,17,17,.82);
+
+  backdrop-filter:none;
+
   display:grid;
   place-items:center;
   font-weight:1000;
   font-size:12px;
-  box-shadow:0 8px 18px rgba(0,0,0,.12);
+
+  /* ★影は最小限 */
+  box-shadow:0 1px 4px rgba(0,0,0,.10);
+
   pointer-events:none;
   user-select:none;
+  z-index:120;
 }
 
 /* =========================
-   ★追加：生存クリア演出（白薔薇拡大して3秒）
+   ★更新：生存クリア演出（白薔薇拡大＋ちょい揺れ→3秒後に消える）
    ========================= */
 .aliveclear-overlay{
   position:fixed; inset:0;
@@ -1091,6 +1140,7 @@
   pointer-events:none;
 }
 .aliveclear-overlay.hidden{display:none;}
+
 .aliveclear-card{
   width:170px; height:255px;
   border-radius:18px;
@@ -1101,19 +1151,34 @@
   box-shadow:0 26px 70px rgba(0,0,0,.34);
   transform:scale(.92);
   opacity:0;
+  will-change: transform, opacity;
 }
+
 .aliveclear-overlay.play .aliveclear-card{
-  animation: aliveClearIn .22s ease-out both, aliveClearHold 3.0s linear .22s both;
+  /* 3秒で完結（拡大→揺れ→フェードアウト） */
+  animation: aliveClearShow 3.0s ease-out both;
 }
-@keyframes aliveClearIn{
-  from{ opacity:0; transform:scale(.88); }
-  to  { opacity:1; transform:scale(1.06); }
+
+@keyframes aliveClearShow{
+  0%   { opacity:0; transform:scale(.88) rotate(0deg); }
+  10%  { opacity:1; transform:scale(1.06) rotate(0deg); }
+
+  /* ちょい揺れ（拡大後に小刻み） */
+  18%  { transform:scale(1.06) rotate(-2.2deg); }
+  26%  { transform:scale(1.06) rotate( 2.2deg); }
+  34%  { transform:scale(1.06) rotate(-1.6deg); }
+  42%  { transform:scale(1.06) rotate( 1.6deg); }
+  50%  { transform:scale(1.06) rotate(-1.1deg); }
+  58%  { transform:scale(1.06) rotate( 1.1deg); }
+  66%  { transform:scale(1.06) rotate(-0.7deg); }
+  74%  { transform:scale(1.06) rotate( 0.7deg); }
+  82%  { transform:scale(1.06) rotate(0deg); }
+
+  /* 終盤で消す */
+  92%  { opacity:1; transform:scale(1.06) rotate(0deg); }
+  100% { opacity:0; transform:scale(1.02) rotate(0deg); }
 }
-@keyframes aliveClearHold{
-  0%  { opacity:1; transform:scale(1.06); }
-  90% { opacity:1; transform:scale(1.06); }
-  100%{ opacity:0; transform:scale(1.02); }
-}
+
 
 /* =========================
    ★追加：ゲームオーバー演出（白薔薇散り＋背面から暗刃）
@@ -1279,6 +1344,12 @@
       </div>
     </div>
 
+<div id="coinPool" class="coin-pool hidden">
+  <div class="coin-pool-title">COIN POOL</div>
+  <div id="coinPoolInner" class="coin-pool-inner"></div>
+</div>
+
+
     <div class="my-hand-wrapper">
       <div class="my-hand-title">自分のカード</div>
       <div id="myHand" class="my-hand"></div>
@@ -1384,10 +1455,6 @@
   </div>
 </div>
 
-<div id="coinPool" class="coin-pool hidden">
-  <div class="coin-pool-title">COIN POOL</div>
-  <div id="coinPoolInner" class="coin-pool-inner"></div>
-</div>
 
 <!-- ★更新：効果3/4の手札シャッフル演出（自分だけ） -->
 <div id="power34ShuffleOverlay" class="power34-shuffle-overlay" aria-hidden="true"></div>
@@ -1594,21 +1661,30 @@ function updateTargetBadges(){
 }
 
 /* discardデータからカード名配列を抽出（配列/オブジェクト両対応） */
-function extractCardNames(value){
+function extractCardNames(value, options = {}){
+  const { skipDead = false } = options;
   if (!value) return [];
   if (Array.isArray(value)){
-    return value.map(v => (typeof v === 'string' ? v : (v?.card ?? v?.name ?? null))).filter(Boolean);
+    return value.flatMap((v) => {
+      if (skipDead && v && typeof v === 'object' && v.dead) return [];
+      const name = typeof v === 'string' ? v : (v?.card ?? v?.name ?? null);
+      return name ? [name] : [];
+    });
   }
   if (typeof value === 'object'){
     // {key:{card:"司教"}} / {0:"司教"} など
-    return Object.values(value).map(v => (typeof v === 'string' ? v : (v?.card ?? v?.name ?? null))).filter(Boolean);
+    return Object.values(value).flatMap((v) => {
+      if (skipDead && v && typeof v === 'object' && v.dead) return [];
+      const name = typeof v === 'string' ? v : (v?.card ?? v?.name ?? null);
+      return name ? [name] : [];
+    });
   }
   return [];
 }
 
-function getDiscardCards(slotKey){
+function getDiscardCards(slotKey, options = {}){
   const d = state.discard || {};
-  return extractCardNames(d[slotKey]);
+  return extractCardNames(d[slotKey], options);
 }
 
 function countBelieverAndBishop(cards){
@@ -1691,7 +1767,10 @@ function checkRoundEndConditionsAfterDiscardPlaced(){
   const t = getTargetsByPlayerCount();
   if (!t) return;
 
-  const aliveCards = getDiscardCards('alive');
+  const aliveCards = [
+    ...getDiscardCards('alive'),
+    ...getDiscardCards('rose', { skipDead: true }),
+  ];
   const deadCards  = getDiscardCards('dead');
 
   const aliveBD = countBelieverAndBishop(aliveCards);
@@ -2149,6 +2228,36 @@ function getLeftUid(uid){
   if (prevSeat == null) return null;
   return getUidBySeatIndex(prevSeat);
 }
+
+function getSeatAngleDeg(uid){
+  // プレイヤーノードと円の中心から、カードの「上辺」が円の中心を向く角度を算出
+  const node = ui.nodeByUserId.get(uid);
+  if (!node || !playerCircle) return 0;
+
+  const circleRect = playerCircle.getBoundingClientRect();
+  const cx = circleRect.left + circleRect.width / 2;
+  const cy = circleRect.top + circleRect.height / 2;
+
+  const r = node.getBoundingClientRect();
+  const px = r.left + r.width / 2;
+  const py = r.top + r.height / 2;
+
+  // ベクトル：プレイヤー位置 → 円の中心
+  const rad = Math.atan2(cy - py, cx - px);
+  // 0deg = 上向きなので +90deg して「上辺」が中心を向くように
+  const deg = rad * 180 / Math.PI + 90;
+  return deg;
+}
+
+function updatePlayedCardAngles(){
+  // 役カード（裏面ミニカード）だけ、上辺を円の中心に向ける
+  for (const [uid, el] of ui.playedBackByUserId){
+    if (!el) continue;
+    const deg = getSeatAngleDeg(uid);
+    el.style.transform = `translate(-50%,-50%) rotate(${deg}deg)`;
+  }
+}
+
 
 /* =========================
    ★効果3/4「選べない」判定（手順は時計回り）
@@ -4179,6 +4288,8 @@ async function startGameDeal(){
 function renderPlays(){
   renderPlayedMarkers();
   applyPlayableAnimToMyHand();
+  updatePlayedCardAngles();
+
 }
 
 function hashToNumber(str){
