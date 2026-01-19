@@ -2402,8 +2402,14 @@ function subscribeDiscard(){
   });
 }
 
-function isEveryoneDecided(){
+function getDecisionPlayerCount(){
+  const maxPlayers = Number(state.room?.maxPlayers || 0);
   const playerCount = (state.players || []).length;
+  return maxPlayers > 0 ? maxPlayers : playerCount;
+}
+
+function isEveryoneDecided(){
+  const playerCount = getDecisionPlayerCount();
   if (playerCount <= 0) return false;
   const playedCount = Object.keys(state.plays || {}).length;
   return playedCount === playerCount;
@@ -5080,7 +5086,8 @@ async function hostStepWaitToNext(){
       .map(([seatIndex, t]) => (t && t.playerId ? ({ id:t.playerId, seatIndex:Number(seatIndex) }) : null))
       .filter(Boolean);
 
-    const playerCount = players.length;
+    const maxPlayers = Number(state.room?.maxPlayers || 0);
+    const playerCount = maxPlayers > 0 ? maxPlayers : players.length;
     const playedCount = Object.keys(plays || {}).length;
 
     if (playerCount <= 0 || playedCount !== playerCount) return;
@@ -5135,7 +5142,8 @@ function maybeHostAdvanceRound(){
 
   const phase = state.game.phase || 'collect';
   const players = state.players || [];
-  const playerCount = players.length;
+  const maxPlayers = Number(state.room?.maxPlayers || 0);
+  const playerCount = maxPlayers > 0 ? maxPlayers : players.length;
   if (playerCount <= 0) return;
 
   const plays = state.plays || {};
