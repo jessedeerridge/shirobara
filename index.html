@@ -1596,6 +1596,7 @@ const state = {
   isHost: false,
 
   room: {},
+  fixedPlayerCount: null,
   hands: {},
   game: {},
   plays: {},
@@ -2261,6 +2262,9 @@ function subscribeRoom(){
   const roomRef = ref(db, `rooms/${state.roomCode}`);
   onValue(roomRef, snap => {
     state.room = snap.val() || {};
+    if (state.room.maxPlayers){
+      state.fixedPlayerCount = Number(state.room.maxPlayers || 0);
+    }
     const waiting = (!state.isHost && !state.room.maxPlayers);
     hostSelectingPop.classList.toggle('hidden', !waiting);
     syncSeatUI();
@@ -2402,8 +2406,16 @@ function subscribeDiscard(){
   });
 }
 
-function isEveryoneDecided(){
+function getDecisionPlayerCount(){
+  const fixedPlayers = Number(state.fixedPlayerCount || 0);
+  const maxPlayers = Number(state.room?.maxPlayers || 0);
   const playerCount = (state.players || []).length;
+  if (fixedPlayers > 0) return fixedPlayers;
+  return maxPlayers > 0 ? maxPlayers : playerCount;
+}
+
+function isEveryoneDecided(){
+  const playerCount = getDecisionPlayerCount();
   if (playerCount <= 0) return false;
   const playedCount = Object.keys(state.plays || {}).length;
   return playedCount === playerCount;
@@ -4049,6 +4061,7 @@ async function renderSeatTabs(){
           const tRef = ref(db, `rooms/${state.roomCode}/tables/1`);
           await set(tRef, { playerId: state.userId, playerName: state.userName });
 
+          state.fixedPlayerCount = i;
           state.seatedTable = 1;
           seatPop.classList.add('hidden');
         };
@@ -4346,6 +4359,192 @@ function renderPlayerCircle(players){
 /* =========================
    追い出しダイアログ
    ========================= */
+function replaceUidInArray(list, fromUid, toUid){
+  const arr = Array.isArray(list) ? list : [];
+  const seen = new Set();
+  const next = [];
+  for (const uid of arr){
+    const replaced = uid === fromUid ? toUid : uid;
+    if (!replaced || seen.has(replaced)) continue;
+    seen.add(replaced);
+    next.push(replaced);
+  }
+  return next;
+}
+
+function arraysEqual(a, b){
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1){
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function buildSeatStealUpdates(roomData, fromUid, toUid){
+  const updates = {};
+  if (!roomData || !fromUid || !toUid || fromUid === toUid) return updates;
+
+  const hands = roomData.hands || {};
+  if (hands[fromUid]){
+    updates[`hands/${toUid}`] = hands[fromUid];
+    updates[`hands/${fromUid}`] = null;
+  }
+
+  const plays = roomData.plays || {};
+  if (plays[fromUid]){
+    updates[`plays/${toUid}`] = plays[fromUid];
+    updates[`plays/${fromUid}`] = null;
+  }
+
+  const roundPlays = roomData.roundPlays || {};
+  for (const [roundKey, roundData] of Object.entries(roundPlays)){
+    if (!roundData || !roundData[fromUid]) continue;
+    updates[`roundPlays/${roundKey}/${toUid}`] = roundData[fromUid];
+    updates[`roundPlays/${roundKey}/${fromUid}`] = null;
+  }
+
+  const coins = roomData.coins || {};
+  for (const [coinId, coin] of Object.entries(coins)){
+    if (!coin) continue;
+    let changed = false;
+    const nextCoin = { ...coin };
+    if (nextCoin.ownerId === fromUid){
+      nextCoin.ownerId = toUid;
+      changed = true;
+    }
+    if (nextCoin.lockBy === fromUid){
+      nextCoin.lockBy = toUid;
+      changed = true;
+    }
+    if (changed){
+      updates[`coins/${coinId}`] = nextCoin;
+    }
+  }
+
+  const game = roomData.game || {};
+  const replaceUid = (value) => (value === fromUid ? toUid : value);
+
+  if (game.powerDisplay?.ownerId === fromUid){
+    updates['game/powerDisplay'] = { ...game.powerDisplay, ownerId: toUid };
+  }
+
+  if (game.power7){
+    const nextPower7 = {
+      ...game.power7,
+      giverId: replaceUid(game.power7.giverId),
+      targetId: replaceUid(game.power7.targetId)
+    };
+    if (nextPower7.giverId !== game.power7.giverId || nextPower7.targetId !== game.power7.targetId){
+      updates['game/power7'] = nextPower7;
+    }
+  }
+
+  if (game.power10){
+    const nextPower10 = {
+      ...game.power10,
+      ownerId: replaceUid(game.power10.ownerId),
+      targetId: replaceUid(game.power10.targetId)
+    };
+    if (nextPower10.ownerId !== game.power10.ownerId || nextPower10.targetId !== game.power10.targetId){
+      updates['game/power10'] = nextPower10;
+    }
+  }
+
+  if (game.power5){
+    const nextTargets = replaceUidInArray(game.power5.targets, fromUid, toUid);
+    const nextPower5 = {
+      ...game.power5,
+      ownerId: replaceUid(game.power5.ownerId),
+      targets: nextTargets
+    };
+    if (nextPower5.ownerId !== game.power5.ownerId || !arraysEqual(nextTargets, game.power5.targets)){
+      updates['game/power5'] = nextPower5;
+    }
+  }
+
+  if (game.power11){
+    const nextPower11 = {
+      ...game.power11,
+      ownerId: replaceUid(game.power11.ownerId),
+      toUid: replaceUid(game.power11.toUid)
+    };
+    if (nextPower11.ownerId !== game.power11.ownerId || nextPower11.toUid !== game.power11.toUid){
+      updates['game/power11'] = nextPower11;
+    }
+  }
+
+  if (game.power112){
+    const nextPower112 = {
+      ...game.power112,
+      ownerId: replaceUid(game.power112.ownerId),
+      targetId: replaceUid(game.power112.targetId)
+    };
+    if (nextPower112.ownerId !== game.power112.ownerId || nextPower112.targetId !== game.power112.targetId){
+      updates['game/power112'] = nextPower112;
+    }
+  }
+
+  if (game.power34){
+    const nextPower34 = {
+      ...game.power34,
+      ownerId: replaceUid(game.power34.ownerId),
+      triggerUid: replaceUid(game.power34.triggerUid),
+      forcedUid: replaceUid(game.power34.forcedUid),
+      claimedBy: replaceUid(game.power34.claimedBy)
+    };
+    if (
+      nextPower34.ownerId !== game.power34.ownerId ||
+      nextPower34.triggerUid !== game.power34.triggerUid ||
+      nextPower34.forcedUid !== game.power34.forcedUid ||
+      nextPower34.claimedBy !== game.power34.claimedBy
+    ){
+      updates['game/power34'] = nextPower34;
+    }
+  }
+
+  if (game.startRoles?.roleToUids){
+    const nextRoleToUids = {};
+    let changed = false;
+    for (const [role, uids] of Object.entries(game.startRoles.roleToUids)){
+      const nextUids = replaceUidInArray(uids, fromUid, toUid);
+      nextRoleToUids[role] = nextUids;
+      if (!arraysEqual(nextUids, uids)){
+        changed = true;
+      }
+    }
+    if (changed){
+      updates['game/startRoles/roleToUids'] = nextRoleToUids;
+    }
+  }
+
+  if (game.chipLosses && Object.prototype.hasOwnProperty.call(game.chipLosses, fromUid)){
+    const nextChipLosses = { ...game.chipLosses };
+    nextChipLosses[toUid] = nextChipLosses[fromUid];
+    delete nextChipLosses[fromUid];
+    updates['game/chipLosses'] = nextChipLosses;
+  }
+
+  if (game.lastCoinOwnerId === fromUid){
+    updates['game/lastCoinOwnerId'] = toUid;
+  }
+
+  if (Array.isArray(game.tableList)){
+    let changed = false;
+    const nextTableList = game.tableList.map((item) => {
+      if (!item || item.uid !== fromUid) return item;
+      changed = true;
+      return { ...item, uid: toUid };
+    });
+    if (changed){
+      updates['game/tableList'] = nextTableList;
+    }
+  }
+
+  return updates;
+}
+
 kickDialog.addEventListener('click', (e) => {
   if (e.target === kickDialog) {
     kickDialog.classList.add('hidden');
@@ -4371,12 +4570,19 @@ btnKickYes.addEventListener('click', async (e) => {
   const roomSnap = await get(roomRef);
   const roomData = roomSnap.val() || {};
 
-  const tRef = ref(db, `rooms/${state.roomCode}/tables/${seatIndex}`);
-  await set(tRef, { playerId: state.userId, playerName: state.userName || '名無し' });
+  const seatUpdates = {
+    [`tables/${seatIndex}`]: { playerId: state.userId, playerName: state.userName || '名無し' }
+  };
 
   if (roomData.hostId && pendingSeatPlayerIdToSteal && roomData.hostId === pendingSeatPlayerIdToSteal) {
-    await update(roomRef, { hostId: state.userId });
+    seatUpdates.hostId = state.userId;
   }
+
+  if (pendingSeatPlayerIdToSteal && pendingSeatPlayerIdToSteal !== state.userId){
+    Object.assign(seatUpdates, buildSeatStealUpdates(roomData, pendingSeatPlayerIdToSteal, state.userId));
+  }
+
+  await update(roomRef, seatUpdates);
 
   state.seatedTable = seatIndex;
 
@@ -4887,7 +5093,7 @@ async function hostStepWaitToNext(){
       .map(([seatIndex, t]) => (t && t.playerId ? ({ id:t.playerId, seatIndex:Number(seatIndex) }) : null))
       .filter(Boolean);
 
-    const playerCount = players.length;
+    const playerCount = getDecisionPlayerCount();
     const playedCount = Object.keys(plays || {}).length;
 
     if (playerCount <= 0 || playedCount !== playerCount) return;
@@ -4942,7 +5148,7 @@ function maybeHostAdvanceRound(){
 
   const phase = state.game.phase || 'collect';
   const players = state.players || [];
-  const playerCount = players.length;
+  const playerCount = getDecisionPlayerCount();
   if (playerCount <= 0) return;
 
   const plays = state.plays || {};
