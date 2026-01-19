@@ -1596,6 +1596,7 @@ const state = {
   isHost: false,
 
   room: {},
+  fixedPlayerCount: null,
   hands: {},
   game: {},
   plays: {},
@@ -2261,6 +2262,9 @@ function subscribeRoom(){
   const roomRef = ref(db, `rooms/${state.roomCode}`);
   onValue(roomRef, snap => {
     state.room = snap.val() || {};
+    if (state.room.maxPlayers){
+      state.fixedPlayerCount = Number(state.room.maxPlayers || 0);
+    }
     const waiting = (!state.isHost && !state.room.maxPlayers);
     hostSelectingPop.classList.toggle('hidden', !waiting);
     syncSeatUI();
@@ -2403,8 +2407,10 @@ function subscribeDiscard(){
 }
 
 function getDecisionPlayerCount(){
+  const fixedPlayers = Number(state.fixedPlayerCount || 0);
   const maxPlayers = Number(state.room?.maxPlayers || 0);
   const playerCount = (state.players || []).length;
+  if (fixedPlayers > 0) return fixedPlayers;
   return maxPlayers > 0 ? maxPlayers : playerCount;
 }
 
@@ -4055,6 +4061,7 @@ async function renderSeatTabs(){
           const tRef = ref(db, `rooms/${state.roomCode}/tables/1`);
           await set(tRef, { playerId: state.userId, playerName: state.userName });
 
+          state.fixedPlayerCount = i;
           state.seatedTable = 1;
           seatPop.classList.add('hidden');
         };
@@ -5086,8 +5093,7 @@ async function hostStepWaitToNext(){
       .map(([seatIndex, t]) => (t && t.playerId ? ({ id:t.playerId, seatIndex:Number(seatIndex) }) : null))
       .filter(Boolean);
 
-    const maxPlayers = Number(state.room?.maxPlayers || 0);
-    const playerCount = maxPlayers > 0 ? maxPlayers : players.length;
+    const playerCount = getDecisionPlayerCount();
     const playedCount = Object.keys(plays || {}).length;
 
     if (playerCount <= 0 || playedCount !== playerCount) return;
@@ -5142,8 +5148,7 @@ function maybeHostAdvanceRound(){
 
   const phase = state.game.phase || 'collect';
   const players = state.players || [];
-  const maxPlayers = Number(state.room?.maxPlayers || 0);
-  const playerCount = maxPlayers > 0 ? maxPlayers : players.length;
+  const playerCount = getDecisionPlayerCount();
   if (playerCount <= 0) return;
 
   const plays = state.plays || {};
