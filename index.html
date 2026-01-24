@@ -2402,11 +2402,18 @@ function subscribeDiscard(){
   });
 }
 
+function getUndecidedPlayers(players, plays){
+  const list = players || [];
+  return list.filter((p) => {
+    const play = plays?.[p.id] || null;
+    return !(play && (play.kind === 'role' || play.kind === 'pass'));
+  });
+}
+
 function isEveryoneDecided(){
-  const playerCount = (state.players || []).length;
-  if (playerCount <= 0) return false;
-  const playedCount = Object.keys(state.plays || {}).length;
-  return playedCount === playerCount;
+  const players = state.players || [];
+  if (players.length <= 0) return false;
+  return getUndecidedPlayers(players, state.plays).length === 0;
 }
 
 /* =========================
@@ -4887,10 +4894,8 @@ async function hostStepWaitToNext(){
       .map(([seatIndex, t]) => (t && t.playerId ? ({ id:t.playerId, seatIndex:Number(seatIndex) }) : null))
       .filter(Boolean);
 
-    const playerCount = players.length;
-    const playedCount = Object.keys(plays || {}).length;
-
-    if (playerCount <= 0 || playedCount !== playerCount) return;
+    if (players.length <= 0) return;
+    if (getUndecidedPlayers(players, plays).length !== 0) return;
 
     const powerNum = Number(game?.powerDisplay?.number ?? null);
 
@@ -4942,13 +4947,11 @@ function maybeHostAdvanceRound(){
 
   const phase = state.game.phase || 'collect';
   const players = state.players || [];
-  const playerCount = players.length;
-  if (playerCount <= 0) return;
+  if (players.length <= 0) return;
 
   const plays = state.plays || {};
-  const playedCount = Object.keys(plays).length;
 
-  if (phase === 'collect' && playedCount === playerCount){
+  if (phase === 'collect' && getUndecidedPlayers(players, plays).length === 0){
     const powerNum = Number(state.game?.powerDisplay?.number ?? null);
     const ownerId = state.game?.powerDisplay?.ownerId || null;
 
