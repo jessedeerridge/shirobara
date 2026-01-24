@@ -4374,16 +4374,54 @@ btnKickYes.addEventListener('click', async (e) => {
   }
 
   const seatIndex = pendingSeatIndexToSteal;
+  const previousPlayerId = pendingSeatPlayerIdToSteal;
   const roomRef = ref(db, `rooms/${state.roomCode}`);
   const roomSnap = await get(roomRef);
   const roomData = roomSnap.val() || {};
 
-  const tRef = ref(db, `rooms/${state.roomCode}/tables/${seatIndex}`);
-  await set(tRef, { playerId: state.userId, playerName: state.userName || '名無し' });
+  const updates = {
+    [`tables/${seatIndex}`]: { playerId: state.userId, playerName: state.userName || '名無し' }
+  };
 
-  if (roomData.hostId && pendingSeatPlayerIdToSteal && roomData.hostId === pendingSeatPlayerIdToSteal) {
-    await update(roomRef, { hostId: state.userId });
+  if (roomData.hostId && previousPlayerId && roomData.hostId === previousPlayerId) {
+    updates['hostId'] = state.userId;
   }
+
+  if (previousPlayerId && previousPlayerId !== state.userId){
+    const [handsSnap, playsSnap, coinsSnap, gameSnap] = await Promise.all([
+      get(ref(db, `rooms/${state.roomCode}/hands`)),
+      get(ref(db, `rooms/${state.roomCode}/plays`)),
+      get(ref(db, `rooms/${state.roomCode}/coins`)),
+      get(ref(db, `rooms/${state.roomCode}/game`)),
+    ]);
+
+    const handsData = handsSnap.val() || {};
+    if (handsData[previousPlayerId]){
+      updates[`hands/${state.userId}`] = handsData[previousPlayerId];
+      updates[`hands/${previousPlayerId}`] = null;
+    }
+
+    const playsData = playsSnap.val() || {};
+    if (playsData[previousPlayerId]){
+      updates[`plays/${state.userId}`] = {
+        ...playsData[previousPlayerId],
+        seatIndex
+      };
+      updates[`plays/${previousPlayerId}`] = null;
+    }
+
+    const coinsData = coinsSnap.val() || {};
+    for (const [coinId, coin] of Object.entries(coinsData)){
+      if (coin?.ownerId === previousPlayerId){
+        updates[`coins/${coinId}/ownerId`] = state.userId;
+      }
+    }
+
+    const gameData = gameSnap.val() || {};
+    Object.assign(updates, buildUserIdSwapUpdatesInGame(gameData, previousPlayerId, state.userId));
+  }
+
+  await update(roomRef, updates);
 
   state.seatedTable = seatIndex;
 
@@ -5357,6 +5395,76 @@ async function setMyPlay({ kind, cardName=null }){
   } finally {
     isSettingMyPlay = false;
   }
+}
+
+function buildUserIdSwapUpdatesInGame(gameData, fromUid, toUid){
+  const updates = {};
+  if (!gameData || !fromUid || !toUid || fromUid === toUid) return updates;
+
+  if (gameData.powerDisplay?.ownerId === fromUid){
+    updates['game/powerDisplay/ownerId'] = toUid;
+  }
+
+  const p5 = gameData.power5 || null;
+  if (p5?.ownerId === fromUid){
+    updates['game/power5/ownerId'] = toUid;
+  }
+  if (Array.isArray(p5?.targets) && p5.targets.includes(fromUid)){
+    updates['game/power5/targets'] = p5.targets.map((id) => (id === fromUid ? toUid : id));
+  }
+
+  const p7 = gameData.power7 || null;
+  if (p7?.giverId === fromUid){
+    updates['game/power7/giverId'] = toUid;
+  }
+  if (p7?.targetId === fromUid){
+    updates['game/power7/targetId'] = toUid;
+  }
+
+  const p10 = gameData.power10 || null;
+  if (p10?.ownerId === fromUid){
+    updates['game/power10/ownerId'] = toUid;
+  }
+  if (p10?.targetId === fromUid){
+    updates['game/power10/targetId'] = toUid;
+  }
+
+  const p11 = gameData.power11 || null;
+  if (p11?.ownerId === fromUid){
+    updates['game/power11/ownerId'] = toUid;
+  }
+  if (p11?.targetId === fromUid){
+    updates['game/power11/targetId'] = toUid;
+  }
+
+  const p112 = gameData.power112 || null;
+  if (p112?.ownerId === fromUid){
+    updates['game/power112/ownerId'] = toUid;
+  }
+  if (p112?.targetId === fromUid){
+    updates['game/power112/targetId'] = toUid;
+  }
+
+  const p34 = gameData.power34 || null;
+  if (p34?.ownerId === fromUid){
+    updates['game/power34/ownerId'] = toUid;
+  }
+  if (p34?.forcedUid === fromUid){
+    updates['game/power34/forcedUid'] = toUid;
+  }
+  if (p34?.triggerUid === fromUid){
+    updates['game/power34/triggerUid'] = toUid;
+  }
+
+  const roleToUids = gameData.startRoles?.roleToUids || null;
+  if (roleToUids && typeof roleToUids === 'object'){
+    for (const [role, ids] of Object.entries(roleToUids)){
+      if (!Array.isArray(ids) || !ids.includes(fromUid)) continue;
+      updates[`game/startRoles/roleToUids/${role}`] = ids.map((id) => (id === fromUid ? toUid : id));
+    }
+  }
+
+  return updates;
 }
 
 
