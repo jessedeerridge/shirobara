@@ -1604,6 +1604,7 @@ const state = {
 
   coins: {},
   players: [],
+  handsLoaded: false,
 };
 
 const mainEl = document.getElementById('main');
@@ -2282,6 +2283,7 @@ function subscribeHands(){
   const handsRef = ref(db, `rooms/${state.roomCode}/hands`);
   onValue(handsRef, snap => {
     state.hands = snap.val() || {};
+    state.handsLoaded = true;
     renderHands();
   });
 }
@@ -2402,11 +2404,18 @@ function subscribeDiscard(){
   });
 }
 
+function getUndecidedPlayers(players, plays){
+  const list = players || [];
+  return list.filter((p) => {
+    const play = plays?.[p.id] || null;
+    return !(play && (play.kind === 'role' || play.kind === 'pass'));
+  });
+}
+
 function isEveryoneDecided(){
-  const playerCount = (state.players || []).length;
-  if (playerCount <= 0) return false;
-  const playedCount = Object.keys(state.plays || {}).length;
-  return playedCount === playerCount;
+  const players = state.players || [];
+  if (players.length <= 0) return false;
+  return getUndecidedPlayers(players, state.plays).length === 0;
 }
 
 /* =========================
@@ -3893,6 +3902,7 @@ async function maybeAutoPassWhenNoHand(){
   if (isSettingMyPlay) return;
   if (!state.roomCode) return;
   if (!state.userId) return;
+  if (!state.handsLoaded) return;
 
 
 
@@ -3902,6 +3912,8 @@ async function maybeAutoPassWhenNoHand(){
 
   if (state.plays?.[state.userId]) return;
 
+  const hasHandEntry = Object.prototype.hasOwnProperty.call(state.hands || {}, state.userId);
+  if (!hasHandEntry) return;
   const handData = state.hands?.[state.userId];
   const roleCards = (handData && Array.isArray(handData.roleCards)) ? handData.roleCards : [];
   if (roleCards.length > 0) return;
@@ -4367,16 +4379,54 @@ btnKickYes.addEventListener('click', async (e) => {
   }
 
   const seatIndex = pendingSeatIndexToSteal;
+  const previousPlayerId = pendingSeatPlayerIdToSteal;
   const roomRef = ref(db, `rooms/${state.roomCode}`);
   const roomSnap = await get(roomRef);
   const roomData = roomSnap.val() || {};
 
-  const tRef = ref(db, `rooms/${state.roomCode}/tables/${seatIndex}`);
-  await set(tRef, { playerId: state.userId, playerName: state.userName || '名無し' });
+  const updates = {
+    [`tables/${seatIndex}`]: { playerId: state.userId, playerName: state.userName || '名無し' }
+  };
 
-  if (roomData.hostId && pendingSeatPlayerIdToSteal && roomData.hostId === pendingSeatPlayerIdToSteal) {
-    await update(roomRef, { hostId: state.userId });
+  if (roomData.hostId && previousPlayerId && roomData.hostId === previousPlayerId) {
+    updates['hostId'] = state.userId;
   }
+
+  if (previousPlayerId && previousPlayerId !== state.userId){
+    const [handsSnap, playsSnap, coinsSnap, gameSnap] = await Promise.all([
+      get(ref(db, `rooms/${state.roomCode}/hands`)),
+      get(ref(db, `rooms/${state.roomCode}/plays`)),
+      get(ref(db, `rooms/${state.roomCode}/coins`)),
+      get(ref(db, `rooms/${state.roomCode}/game`)),
+    ]);
+
+    const handsData = handsSnap.val() || {};
+    if (handsData[previousPlayerId]){
+      updates[`hands/${state.userId}`] = handsData[previousPlayerId];
+      updates[`hands/${previousPlayerId}`] = null;
+    }
+
+    const playsData = playsSnap.val() || {};
+    if (playsData[previousPlayerId]){
+      updates[`plays/${state.userId}`] = {
+        ...playsData[previousPlayerId],
+        seatIndex
+      };
+      updates[`plays/${previousPlayerId}`] = null;
+    }
+
+    const coinsData = coinsSnap.val() || {};
+    for (const [coinId, coin] of Object.entries(coinsData)){
+      if (coin?.ownerId === previousPlayerId){
+        updates[`coins/${coinId}/ownerId`] = state.userId;
+      }
+    }
+
+    const gameData = gameSnap.val() || {};
+    Object.assign(updates, buildUserIdSwapUpdatesInGame(gameData, previousPlayerId, state.userId));
+  }
+
+  await update(roomRef, updates);
 
   state.seatedTable = seatIndex;
 
@@ -4887,10 +4937,8 @@ async function hostStepWaitToNext(){
       .map(([seatIndex, t]) => (t && t.playerId ? ({ id:t.playerId, seatIndex:Number(seatIndex) }) : null))
       .filter(Boolean);
 
-    const playerCount = players.length;
-    const playedCount = Object.keys(plays || {}).length;
-
-    if (playerCount <= 0 || playedCount !== playerCount) return;
+    if (players.length <= 0) return;
+    if (getUndecidedPlayers(players, plays).length !== 0) return;
 
     const powerNum = Number(game?.powerDisplay?.number ?? null);
 
@@ -4942,13 +4990,11 @@ function maybeHostAdvanceRound(){
 
   const phase = state.game.phase || 'collect';
   const players = state.players || [];
-  const playerCount = players.length;
-  if (playerCount <= 0) return;
+  if (players.length <= 0) return;
 
   const plays = state.plays || {};
-  const playedCount = Object.keys(plays).length;
 
-  if (phase === 'collect' && playedCount === playerCount){
+  if (phase === 'collect' && getUndecidedPlayers(players, plays).length === 0){
     const powerNum = Number(state.game?.powerDisplay?.number ?? null);
     const ownerId = state.game?.powerDisplay?.ownerId || null;
 
@@ -5354,6 +5400,76 @@ async function setMyPlay({ kind, cardName=null }){
   } finally {
     isSettingMyPlay = false;
   }
+}
+
+function buildUserIdSwapUpdatesInGame(gameData, fromUid, toUid){
+  const updates = {};
+  if (!gameData || !fromUid || !toUid || fromUid === toUid) return updates;
+
+  if (gameData.powerDisplay?.ownerId === fromUid){
+    updates['game/powerDisplay/ownerId'] = toUid;
+  }
+
+  const p5 = gameData.power5 || null;
+  if (p5?.ownerId === fromUid){
+    updates['game/power5/ownerId'] = toUid;
+  }
+  if (Array.isArray(p5?.targets) && p5.targets.includes(fromUid)){
+    updates['game/power5/targets'] = p5.targets.map((id) => (id === fromUid ? toUid : id));
+  }
+
+  const p7 = gameData.power7 || null;
+  if (p7?.giverId === fromUid){
+    updates['game/power7/giverId'] = toUid;
+  }
+  if (p7?.targetId === fromUid){
+    updates['game/power7/targetId'] = toUid;
+  }
+
+  const p10 = gameData.power10 || null;
+  if (p10?.ownerId === fromUid){
+    updates['game/power10/ownerId'] = toUid;
+  }
+  if (p10?.targetId === fromUid){
+    updates['game/power10/targetId'] = toUid;
+  }
+
+  const p11 = gameData.power11 || null;
+  if (p11?.ownerId === fromUid){
+    updates['game/power11/ownerId'] = toUid;
+  }
+  if (p11?.targetId === fromUid){
+    updates['game/power11/targetId'] = toUid;
+  }
+
+  const p112 = gameData.power112 || null;
+  if (p112?.ownerId === fromUid){
+    updates['game/power112/ownerId'] = toUid;
+  }
+  if (p112?.targetId === fromUid){
+    updates['game/power112/targetId'] = toUid;
+  }
+
+  const p34 = gameData.power34 || null;
+  if (p34?.ownerId === fromUid){
+    updates['game/power34/ownerId'] = toUid;
+  }
+  if (p34?.forcedUid === fromUid){
+    updates['game/power34/forcedUid'] = toUid;
+  }
+  if (p34?.triggerUid === fromUid){
+    updates['game/power34/triggerUid'] = toUid;
+  }
+
+  const roleToUids = gameData.startRoles?.roleToUids || null;
+  if (roleToUids && typeof roleToUids === 'object'){
+    for (const [role, ids] of Object.entries(roleToUids)){
+      if (!Array.isArray(ids) || !ids.includes(fromUid)) continue;
+      updates[`game/startRoles/roleToUids/${role}`] = ids.map((id) => (id === fromUid ? toUid : id));
+    }
+  }
+
+  return updates;
 }
 
 
