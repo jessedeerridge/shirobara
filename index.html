@@ -1604,6 +1604,7 @@ const state = {
 
   coins: {},
   players: [],
+  handsLoaded: false,
 };
 
 const mainEl = document.getElementById('main');
@@ -2282,6 +2283,7 @@ function subscribeHands(){
   const handsRef = ref(db, `rooms/${state.roomCode}/hands`);
   onValue(handsRef, snap => {
     state.hands = snap.val() || {};
+    state.handsLoaded = true;
     renderHands();
   });
 }
@@ -3900,6 +3902,7 @@ async function maybeAutoPassWhenNoHand(){
   if (isSettingMyPlay) return;
   if (!state.roomCode) return;
   if (!state.userId) return;
+  if (!state.handsLoaded) return;
 
 
 
@@ -3909,6 +3912,8 @@ async function maybeAutoPassWhenNoHand(){
 
   if (state.plays?.[state.userId]) return;
 
+  const hasHandEntry = Object.prototype.hasOwnProperty.call(state.hands || {}, state.userId);
+  if (!hasHandEntry) return;
   const handData = state.hands?.[state.userId];
   const roleCards = (handData && Array.isArray(handData.roleCards)) ? handData.roleCards : [];
   if (roleCards.length > 0) return;
