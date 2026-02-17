@@ -125,6 +125,14 @@
   }
   .crystal-guide-pop.hidden{display:none;}
 
+  #spiritGuidePop{
+    bottom:56px;
+    width:min(220px, calc(100% - 36px));
+    white-space:normal;
+    text-align:center;
+    line-height:1.45;
+  }
+
   .crystal-selecting-top-pop{
     position:fixed;left:50%;top:68px;transform:translateX(-50%);
     background:rgba(20,20,20,.92);color:#fff;
@@ -289,6 +297,10 @@
     background:transparent;
     pointer-events:none;
     z-index:119;
+    transition: background-color .12s ease;
+  }
+  .player-tag .handcircle.spirit-drag-target{
+    background:rgba(56, 189, 248, .25);
   }
 
   /* ===== 中央エリア（discardtable / shuffle / table並べ） ===== */
@@ -1664,6 +1676,7 @@
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
 <div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
 <div id="crystalGuidePop" class="crystal-guide-pop hidden">水晶を使用するプレイヤーを選んでください。</div>
+<div id="spiritGuidePop" class="crystal-guide-pop hidden">霊魂を与えるプレイヤーを選んで、カードをドラッグしてください。</div>
 <div id="crystalSelectingTopPop" class="crystal-selecting-top-pop hidden">誰かが水晶を使うプレイヤーを選択中</div>
 
 <div id="seatPop" class="seat-pop hidden">
@@ -1680,17 +1693,6 @@
     <div class="dialog-buttons">
       <button class="btn ghost" id="btnKickNo">いいえ</button>
       <button class="btn primary" id="btnKickYes">はい</button>
-    </div>
-  </div>
-</div>
-
-<!-- ★ 効果7：授けますか（はい/いいえ） -->
-<div id="giveDialog" class="dialog-backdrop hidden">
-  <div class="dialog-box">
-    <p id="giveMessage">「…」に授けますか？</p>
-    <div class="dialog-buttons">
-      <button class="btn ghost" id="btnGiveNo">いいえ</button>
-      <button class="btn primary" id="btnGiveYes">はい</button>
     </div>
   </div>
 </div>
@@ -1791,6 +1793,7 @@ const hostSelectingPop = document.getElementById('hostSelectingPop');
 const coinWarningPop = document.getElementById('coinWarningPop');
 const crystalGuidePop = document.getElementById('crystalGuidePop');
 const crystalSelectingTopPop = document.getElementById('crystalSelectingTopPop');
+const spiritGuidePop = document.getElementById('spiritGuidePop');
 
 const seatPop = document.getElementById('seatPop');
 const seatTabs = document.getElementById('seatTabs');
@@ -1804,11 +1807,6 @@ const kickDialog = document.getElementById('kickDialog');
 const kickMessage = document.getElementById('kickMessage');
 const btnKickYes = document.getElementById('btnKickYes');
 const btnKickNo = document.getElementById('btnKickNo');
-
-const giveDialog = document.getElementById('giveDialog');
-const giveMessage = document.getElementById('giveMessage');
-const btnGiveYes = document.getElementById('btnGiveYes');
-const btnGiveNo = document.getElementById('btnGiveNo');
 
 const hostSettingsBtn = document.getElementById('hostSettingsBtn');
 const startPop = document.getElementById('startPop');
@@ -2278,6 +2276,7 @@ const ui = {
   nodeByUserId: new Map(),
   tagByUserId: new Map(),
   owncoinByUserId: new Map(),
+  handcircleByUserId: new Map(),
   playedBackByUserId: new Map(),
   miniHandByUserId: new Map(),
   miniHandHitByUserId: new Map(),
@@ -2568,6 +2567,7 @@ function subscribeCoins(){
     applyPlayableAnimToMyHand();
     maybeResetPower5Link();
     updateCrystalGuidePop();
+    updateSpiritGuidePop();
   });
 }
 function subscribeDiscard(){
@@ -2725,6 +2725,19 @@ function getDisabledUidByPower34(){
 function isMyPlayLockedByPower34(){
   const disabledUid = getDisabledUidByPower34();
   return !!(disabledUid && disabledUid === state.userId);
+}
+
+function isMyPlayLockedByPower7Pending(uid = state.userId){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'collect') return false;
+
+  const pd = state.game?.powerDisplay || null;
+  if (!pd || Number(pd.number) !== 7) return false;
+  if (pd.ownerId !== uid) return false;
+
+  const p7 = state.game?.power7 || null;
+  return !(p7 && p7.used);
 }
 
 /* =========================
@@ -3897,6 +3910,7 @@ function isRolePlayableNow() {
     if (isEveryoneDecided()) return false;
     if (!isMyCollectTurn()) return false;
     if (isMyPlayLockedByPower34()) return false;
+    if (isMyPlayLockedByPower7Pending()) return false;
     if (isMyPlayLockedByPower5Waiting()) return false;
     if (isMyPlayLockedByPower5Pass()) return false;
     if (isPower11PeekLockActive) return false;
@@ -3966,6 +3980,7 @@ function updateGameUI(){
   updatePower10UI();
   updateCrystalGuidePop();
   updateCrystalSelectingTopPop();
+  updateSpiritGuidePop();
 
   if (started){
     requestAnimationFrame(() => {
@@ -3990,6 +4005,7 @@ function showCoinWarningPop(){
     coinWarningPop.classList.add('hidden');
     isCoinWarningShowing = false;
     updateCrystalGuidePop();
+    updateSpiritGuidePop();
   }, 1600);
 }
 
@@ -4002,6 +4018,12 @@ function updateCrystalGuidePop(){
   const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
   const shouldShow = canCurrentUserDragOwnedCrystal(ownerId);
   crystalGuidePop.classList.toggle('hidden', !shouldShow);
+}
+
+function updateSpiritGuidePop(){
+  if (!spiritGuidePop) return;
+  const shouldShow = isMyPlayLockedByPower7Pending();
+  spiritGuidePop.classList.toggle('hidden', !shouldShow);
 }
 
 function updateCrystalSelectingTopPop(){
@@ -4045,6 +4067,7 @@ function renderHands(){
   renderPower5Link();
   updateCrystalGuidePop();
   updateCrystalSelectingTopPop();
+  updateSpiritGuidePop();
 }
 
 function renderRoundPlayTable(){
@@ -4161,7 +4184,8 @@ function renderMyHand(){
       !isPassHiddenForUid(myId) &&
       !isPower10ChangeAllowed(myId) &&
       !isPower5SelectionIncomplete() &&
-      !isMyPlayLockedByPower5Waiting();
+      !isMyPlayLockedByPower5Waiting() &&
+      !isMyPlayLockedByPower7Pending();
 
     if (passShouldShow){
       const pass = document.createElement('div');
@@ -4175,6 +4199,7 @@ function renderMyHand(){
         if (isPower5SelectionIncomplete()) return;
         if (isMyPlayLockedByPower5Waiting()) return;
         if (isMyPlayLockedByPower5Pass()) return;
+        if (isMyPlayLockedByPower7Pending()) return;
         if (isPower11PeekLockActive) return;
         if (!isMyCollectTurn()) return;
         await setMyPlay({ kind:'pass' });
@@ -4572,6 +4597,7 @@ function renderPlayerCircle(players){
   ui.nodeByUserId.clear();
   ui.tagByUserId.clear();
   ui.owncoinByUserId.clear();
+  ui.handcircleByUserId.clear();
   ui.miniHandByUserId.clear();
   ui.miniHandHitByUserId.clear();
   ui.miniHandSquareByUserId.clear();
@@ -4625,48 +4651,53 @@ function renderPlayerCircle(players){
     const handData = state.hands[p.id];
     const roleCount = (handData && Array.isArray(handData.roleCards)) ? handData.roleCards.length : 0;
 
-    if (p.id !== state.userId && roleCount > 0){
-      const miniHand = document.createElement('div');
-      miniHand.className = 'mini-hand';
-
-      const square = document.createElement('div');
-      square.className = 'mini-hand-square';
-      square.classList.toggle('hidden', hasLostCrystalChip(p.id));
-
-      const count = roleCount;
-      const spread = 70;
-      const base = (count > 1) ? (-spread/2) : 0;
-
-      for (let i=0;i<count;i++){
-        const c = document.createElement('div');
-        c.className = 'mini-card';
-        c.textContent = '';
-
-        const angleDeg = (count > 1) ? base + (spread/(count-1))*i : 0;
-        c.style.transform = `translate(-50%,0) rotate(${angleDeg}deg)`;
-       c.style.zIndex = String(10 + i);
-        miniHand.appendChild(c);
-      }
+    if (p.id !== state.userId){
       const handcircle = document.createElement('div');
       handcircle.className = 'handcircle';
-
-      tag.appendChild(square);
       tag.appendChild(handcircle);
-      tag.appendChild(miniHand);
+      ui.handcircleByUserId.set(p.id, handcircle);
+      handcircle.classList.toggle('spirit-drag-target', !!spiritDrag);
 
-      // ★追加：クリック当たり判定（選択中だけ有効）
-      const hit = document.createElement('div');
-      hit.className = 'mini-hand-hit';
-      hit.title = '手札を選択';
-      hit.addEventListener('click', (e) => {
-        e.stopPropagation();
-        onOtherHandClicked(p.id, e);
-      });
-      tag.appendChild(hit);
+      if (roleCount > 0){
+        const miniHand = document.createElement('div');
+        miniHand.className = 'mini-hand';
 
-      ui.miniHandByUserId.set(p.id, miniHand);
-      ui.miniHandHitByUserId.set(p.id, hit);
-      ui.miniHandSquareByUserId.set(p.id, square);
+        const square = document.createElement('div');
+        square.className = 'mini-hand-square';
+        square.classList.toggle('hidden', hasLostCrystalChip(p.id));
+
+        const count = roleCount;
+        const spread = 70;
+        const base = (count > 1) ? (-spread/2) : 0;
+
+        for (let i=0;i<count;i++){
+          const c = document.createElement('div');
+          c.className = 'mini-card';
+          c.textContent = '';
+
+          const angleDeg = (count > 1) ? base + (spread/(count-1))*i : 0;
+          c.style.transform = `translate(-50%,0) rotate(${angleDeg}deg)`;
+         c.style.zIndex = String(10 + i);
+          miniHand.appendChild(c);
+        }
+
+        tag.appendChild(square);
+        tag.appendChild(miniHand);
+
+        // ★追加：クリック当たり判定（選択中だけ有効）
+        const hit = document.createElement('div');
+        hit.className = 'mini-hand-hit';
+        hit.title = '手札を選択';
+        hit.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onOtherHandClicked(p.id, e);
+        });
+        tag.appendChild(hit);
+
+        ui.miniHandByUserId.set(p.id, miniHand);
+        ui.miniHandHitByUserId.set(p.id, hit);
+        ui.miniHandSquareByUserId.set(p.id, square);
+      }
     }
 
     node.appendChild(owncoin);
@@ -4732,44 +4763,19 @@ btnKickYes.addEventListener('click', async (e) => {
 });
 
 /* =========================
-   効果7：授けますかダイアログ
+   効果7：霊魂付与（確認なしで即時）
    ========================= */
-let pendingGiveTargetId = null;
-let pendingGiveTargetName = null;
 let pendingPower10TargetId = null;
 let pendingPower10TargetName = null;
 
-giveDialog.addEventListener('click', (e) => {
-  if (e.target === giveDialog) {
-    giveDialog.classList.add('hidden');
-    pendingGiveTargetId = null;
-    pendingGiveTargetName = null;
-  }
-});
-btnGiveNo.addEventListener('click', (e) => {
-  e.stopPropagation();
-  giveDialog.classList.add('hidden');
-  pendingGiveTargetId = null;
-  pendingGiveTargetName = null;
-});
-btnGiveYes.addEventListener('click', async (e) => {
-  e.stopPropagation();
-  if (!state.roomCode) return;
-  if (!pendingGiveTargetId) {
-    giveDialog.classList.add('hidden');
-    return;
-  }
+async function grantSpiritToTarget(targetId){
+  if (!state.roomCode || !targetId) return;
 
   const p7 = state.game?.power7 || null;
   if (p7 && p7.used) {
-    giveDialog.classList.add('hidden');
-    pendingGiveTargetId = null;
-    pendingGiveTargetName = null;
     updatePower7UI();
     return;
   }
-
-  const targetId = pendingGiveTargetId;
 
   await runTransaction(ref(db, `rooms/${state.roomCode}/hands/${targetId}/roleCards`), (cur) => {
     const arr = Array.isArray(cur) ? [...cur] : [];
@@ -4790,11 +4796,8 @@ btnGiveYes.addEventListener('click', async (e) => {
     return cur;
   });
 
-  giveDialog.classList.add('hidden');
-  pendingGiveTargetId = null;
-  pendingGiveTargetName = null;
   updatePower7UI();
-});
+}
 
 /* =========================
    効果10：選択/確認/変更
@@ -5629,6 +5632,8 @@ function startDragCard(e, payload){
 
   // ★効果3/4で選べない人はドラッグ不可
   if (!power10Allowed && isMyPlayLockedByPower34()) return;
+  // ★効果7：霊魂を与えるまでは手札を選べない
+  if (!power10Allowed && isMyPlayLockedByPower7Pending()) return;
   // ★効果5：2人決定前は全員選択不可
   if (!power10Allowed && isPower5SelectionIncomplete()) return;
   // ★効果5：先の人が決めるまで後の人はドラッグ不可
@@ -5713,6 +5718,8 @@ async function setMyPlay({ kind, cardName=null }){
 
   // ★効果3/4で選べない人は「出さない」も不可
   if (!power10Allowed && isMyPlayLockedByPower34()) return;
+  // ★効果7：霊魂を与えるまではプレイ不可
+  if (!power10Allowed && isMyPlayLockedByPower7Pending()) return;
   // ★効果5：2人決定前は全員選択不可
   if (!power10Allowed && isPower5SelectionIncomplete()) return;
   // ★効果5：先の人が決めるまで後の人は不可
@@ -5845,6 +5852,16 @@ function getOwncoinHitUserId(clientX, clientY){
     const dy = clientY - cy;
     const rad = r.width/2;
     if ((dx*dx + dy*dy) <= (rad*rad)) return uid;
+  }
+  return null;
+}
+
+function getHandcircleHitUserId(clientX, clientY){
+  for (const [uid, handcircle] of ui.handcircleByUserId){
+    const r = handcircle.getBoundingClientRect();
+    if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+      return uid;
+    }
   }
   return null;
 }
@@ -6041,7 +6058,7 @@ function startDragCoinFromPool(e){
     const poolRect = coinPoolInner.getBoundingClientRect();
     const inPool = rectContainsPoint(poolRect, ev.clientX, ev.clientY);
 
-    const hitUid = getOwncoinHitUserId(ev.clientX, ev.clientY);
+    const hitUid = getHandcircleHitUserId(ev.clientX, ev.clientY);
 
     if (hitUid){
       if (!canTransferCoinTo(hitUid, prev?.ownerId ?? null)){
@@ -6149,7 +6166,7 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
     coinDrag = null;
     srcEl.style.opacity = ''
 
-    const hitUid = getOwncoinHitUserId(ev.clientX, ev.clientY);
+    const hitUid = getHandcircleHitUserId(ev.clientX, ev.clientY);
 
     if (hitUid){
       if (!canTransferCoinTo(hitUid, prev?.ownerId ?? null)){
@@ -6212,9 +6229,17 @@ function updatePower7UI(){
   } else {
     spiritCard.textContent = '霊魂';
   }
+
+  updateSpiritGuidePop();
 }
 
 let spiritDrag = null;
+
+function setSpiritDragHint(active){
+  for (const handcircle of ui.handcircleByUserId.values()){
+    handcircle.classList.toggle('spirit-drag-target', !!active);
+  }
+}
 
 function moveSpiritGhost(x, y){
   const g = spiritDrag?.ghost;
@@ -6243,8 +6268,9 @@ function startDragSpirit(e){
   ghost.classList.add('drag-ghost');
   mainEl.appendChild(ghost);
 
-  spiritCard.style.opacity = '0.25';
+  spiritCard.style.visibility = 'hidden';
   spiritDrag = { pointerId, ghost };
+  setSpiritDragHint(true);
 
   moveSpiritGhost(e.clientX, e.clientY);
 
@@ -6253,23 +6279,20 @@ function startDragSpirit(e){
     moveSpiritGhost(ev.clientX, ev.clientY);
   };
 
-  const onUp = (ev) => {
+  const onUp = async (ev) => {
     if (!spiritDrag || ev.pointerId !== spiritDrag.pointerId) return;
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
 
     spiritDrag.ghost.remove();
     spiritDrag = null;
-    spiritCard.style.opacity = '';
+    spiritCard.style.visibility = '';
+    setSpiritDragHint(false);
 
-    const hitUid = getOwncoinHitUserId(ev.clientX, ev.clientY);
+    const hitUid = getHandcircleHitUserId(ev.clientX, ev.clientY);
     if (!hitUid) return;
 
-    const targetName = (state.players || []).find(p => p.id === hitUid)?.name || '誰か';
-    pendingGiveTargetId = hitUid;
-    pendingGiveTargetName = targetName;
-    giveMessage.textContent = `「${targetName}」に授けますか？`;
-    giveDialog.classList.remove('hidden');
+    await grantSpiritToTarget(hitUid);
   };
 
   window.addEventListener('pointermove', onMove);
