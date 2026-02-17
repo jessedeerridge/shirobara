@@ -458,7 +458,7 @@
     ) rotate(var(--collect-base-rot));
   }
   .played-back.shuffling.slide-card{
-    animation: collectPower34Slide 420ms ease-in-out infinite alternate;
+    animation: collectPower34Slide 200ms ease-in-out 4 alternate both;
   }
   .played-x.shuffling{
     /* シャッフル中はその場でフェードアウトして消えるだけ */
@@ -4942,31 +4942,10 @@ function handleViewportResize(){
 }
 window.addEventListener('resize', handleViewportResize);
 
-function hashToNumber(str){
-  let h = 0;
-  for (let i = 0; i < str.length; i++){
-    h = ((h << 5) - h) + str.charCodeAt(i);
-    h |= 0;
-  }
-  return Math.abs(h);
-}
 
-function setShuffleVars(el, uid){
-  const base = hashToNumber(uid);
-  const jitter = (offset, range) => {
-    const v = Math.sin(base + offset) * 10000;
-    return (v - Math.floor(v)) * range * 2 - range;
-  };
-  el.style.setProperty('--sx1', `${jitter(1, 12).toFixed(1)}px`);
-  el.style.setProperty('--sy1', `${jitter(2, 10).toFixed(1)}px`);
-  el.style.setProperty('--sr1', `${jitter(3, 12).toFixed(1)}deg`);
-  el.style.setProperty('--sx2', `${jitter(4, 16).toFixed(1)}px`);
-  el.style.setProperty('--sy2', `${jitter(5, 14).toFixed(1)}px`);
-  el.style.setProperty('--sr2', `${jitter(6, 16).toFixed(1)}deg`);
-  el.style.setProperty('--sx3', `${jitter(7, 10).toFixed(1)}px`);
-  el.style.setProperty('--sy3', `${jitter(8, 12).toFixed(1)}px`);
-  el.style.setProperty('--sr3', `${jitter(9, 10).toFixed(1)}deg`);
-}
+const COLLECT_SHUFFLE_GATHER_MS = 450;
+const COLLECT_SHUFFLE_PAUSE_MS = 30;
+let collectShuffleStartedAt = 0;
 
 function renderPlayedMarkers(){
   const plays = state.plays || {};
@@ -4975,6 +4954,14 @@ function renderPlayedMarkers(){
   const isShuffle = started && phase === 'shuffle';
   const isReveal2 = started && phase === 'reveal2';
   const isTable = started && phase === 'table';
+
+  if (isShuffle){
+    if (!collectShuffleStartedAt) collectShuffleStartedAt = Date.now();
+  } else {
+    collectShuffleStartedAt = 0;
+  }
+  const collectShuffleSlideReady = isShuffle
+    && (Date.now() - collectShuffleStartedAt) >= (COLLECT_SHUFFLE_GATHER_MS + COLLECT_SHUFFLE_PAUSE_MS);
 
   for (const [uid, el] of ui.playedBackByUserId){
     if (!plays[uid] || isTable) {
@@ -5060,7 +5047,6 @@ function renderPlayedMarkers(){
     marker.style.top  = `${point.y}px`;
 
     if (isShuffle){
-      setShuffleVars(marker, uid);
       marker.classList.add('shuffling');
       marker.style.left = `${shufflePoint.x}px`;
       marker.style.top  = `${shufflePoint.y}px`;
@@ -5068,7 +5054,7 @@ function renderPlayedMarkers(){
       const stackPos = roleIdsForShuffle.indexOf(uid);
       const depth = stackPos >= 0 ? Math.max(roleIdsForShuffle.length - 1 - stackPos, 0) : 0;
       marker.style.setProperty('--stack-depth', String(depth));
-      marker.classList.toggle('slide-card', stackPos >= 0 && stackPos >= roleIdsForShuffle.length - 2);
+      marker.classList.toggle('slide-card', collectShuffleSlideReady && stackPos >= 0 && stackPos >= roleIdsForShuffle.length - 2);
     } else {
       marker.classList.remove('shuffling', 'slide-card');
       marker.style.removeProperty('--stack-depth');
