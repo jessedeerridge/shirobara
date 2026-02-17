@@ -446,30 +446,27 @@
     transition: left 0.45s ease, top 0.45s ease;
     will-change: left, top;
   }
-  /* ★更新：シャッフル時はカードだけアニメ、✕は消す */
+  /* ★更新：全員提出後シャッフルは効果3/4と同じ「傾け固定＋2枚横スライド」 */
   .played-back.shuffling{
-    animation: miniShuffle 1s ease-in-out both;
+    transform:translate(-50%,-50%) translate(var(--shuffle-stack-x, 0px), var(--shuffle-stack-y, 0px)) rotate(var(--shuffle-tilt, 5deg));
+  }
+  .played-back.shuffling.slide-card{
+    animation: playedShuffleSlide 420ms ease-in-out 2 both;
   }
   .played-x.shuffling{
     /* シャッフル中はその場でフェードアウトして消えるだけ */
     opacity:0;
     transform:translate(-50%,-50%);
   }
-  @keyframes miniShuffle{
+  @keyframes playedShuffleSlide{
     0%{
-      transform:translate(-50%,-50%) rotate(0deg);
+      transform:translate(-50%,-50%) translate(var(--shuffle-stack-x, 0px), var(--shuffle-stack-y, 0px)) rotate(var(--shuffle-tilt, 5deg));
     }
-    25%{
-      transform:translate(calc(-50% + var(--sx1)), calc(-50% + var(--sy1))) rotate(var(--sr1));
-    }
-    55%{
-      transform:translate(calc(-50% + var(--sx2)), calc(-50% + var(--sy2))) rotate(var(--sr2));
-    }
-    80%{
-      transform:translate(calc(-50% + var(--sx3)), calc(-50% + var(--sy3))) rotate(var(--sr3));
+    50%{
+      transform:translate(-50%,-50%) translate(calc(var(--shuffle-stack-x, 0px) + var(--shuffle-slide-x, 42px)), var(--shuffle-stack-y, 0px)) rotate(calc(var(--shuffle-tilt, 5deg) + 1.5deg));
     }
     100%{
-      transform:translate(-50%,-50%) rotate(0deg);
+      transform:translate(-50%,-50%) translate(var(--shuffle-stack-x, 0px), var(--shuffle-stack-y, 0px)) rotate(var(--shuffle-tilt, 5deg));
     }
   }
 
@@ -4935,30 +4932,27 @@ function handleViewportResize(){
 }
 window.addEventListener('resize', handleViewportResize);
 
-function hashToNumber(str){
-  let h = 0;
-  for (let i = 0; i < str.length; i++){
-    h = ((h << 5) - h) + str.charCodeAt(i);
-    h |= 0;
-  }
-  return Math.abs(h);
+function getShuffleVisualOrder(plays){
+  return Object.entries(plays || {})
+    .filter(([_, p]) => !!p)
+    .sort((a, b) => {
+      const aAt = Number(a[1]?.playedAt || 0);
+      const bAt = Number(b[1]?.playedAt || 0);
+      if (aAt !== bAt) return aAt - bAt;
+      return String(a[0]).localeCompare(String(b[0]));
+    })
+    .map(([uid]) => uid);
 }
 
-function setShuffleVars(el, uid){
-  const base = hashToNumber(uid);
-  const jitter = (offset, range) => {
-    const v = Math.sin(base + offset) * 10000;
-    return (v - Math.floor(v)) * range * 2 - range;
-  };
-  el.style.setProperty('--sx1', `${jitter(1, 12).toFixed(1)}px`);
-  el.style.setProperty('--sy1', `${jitter(2, 10).toFixed(1)}px`);
-  el.style.setProperty('--sr1', `${jitter(3, 12).toFixed(1)}deg`);
-  el.style.setProperty('--sx2', `${jitter(4, 16).toFixed(1)}px`);
-  el.style.setProperty('--sy2', `${jitter(5, 14).toFixed(1)}px`);
-  el.style.setProperty('--sr2', `${jitter(6, 16).toFixed(1)}deg`);
-  el.style.setProperty('--sx3', `${jitter(7, 10).toFixed(1)}px`);
-  el.style.setProperty('--sy3', `${jitter(8, 12).toFixed(1)}px`);
-  el.style.setProperty('--sr3', `${jitter(9, 10).toFixed(1)}deg`);
+function setPlayedShuffleStackVars(el, stackIndex, stackCount){
+  const idx = Math.max(0, Number(stackIndex || 0));
+  const backCount = Math.max(0, Number(stackCount || 0) - 1 - idx);
+  const offset = Math.min(4, backCount) * 2;
+  const tilt = 3 + Math.min(4, backCount) * 0.8;
+  el.style.setProperty('--shuffle-stack-x', `${offset}px`);
+  el.style.setProperty('--shuffle-stack-y', `${offset}px`);
+  el.style.setProperty('--shuffle-tilt', `${tilt}deg`);
+  el.style.setProperty('--shuffle-slide-x', '42px');
 }
 
 function renderPlayedMarkers(){
@@ -4984,6 +4978,9 @@ function renderPlayedMarkers(){
   const shuffleX = discardRect.left + discardRect.width/2;
   const shuffleY = discardRect.top + discardRect.height/2;
   const shufflePoint = clientToMainCoords(shuffleX, shuffleY);
+  const shuffleOrder = isShuffle ? getShuffleVisualOrder(plays) : [];
+  const shuffleIndexByUid = new Map(shuffleOrder.map((uid, idx) => [uid, idx]));
+  const slideStartIdx = Math.max(0, shuffleOrder.length - 2);
 
   for (const uid of Object.keys(plays)){
     const p = plays[uid];
@@ -5049,12 +5046,19 @@ function renderPlayedMarkers(){
     marker.style.top  = `${point.y}px`;
 
     if (isShuffle){
-      setShuffleVars(marker, uid);
+      const stackIndex = Number(shuffleIndexByUid.get(uid) ?? 0);
+      setPlayedShuffleStackVars(marker, stackIndex, shuffleOrder.length);
       marker.classList.add('shuffling');
+      if (marker.dataset.kind === 'role' && stackIndex >= slideStartIdx){
+        marker.classList.add('slide-card');
+      } else {
+        marker.classList.remove('slide-card');
+      }
       marker.style.left = `${shufflePoint.x}px`;
       marker.style.top  = `${shufflePoint.y}px`;
     } else {
       marker.classList.remove('shuffling');
+      marker.classList.remove('slide-card');
       marker.style.left = `${point.x}px`;
       marker.style.top  = `${point.y}px`;
     }
