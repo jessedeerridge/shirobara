@@ -2456,9 +2456,18 @@ function getCollectTurnOwnerId(){
   const startIndex = players.findIndex(p => p.id === starterId);
   if (startIndex < 0) return null;
 
+  const pd = state.game?.powerDisplay || null;
+  const isPower6OwnerTurnShift = !!(
+    pd &&
+    Number(pd.number) === 6 &&
+    pd.ownerId &&
+    pd.ownerId === starterId
+  );
+  const orderOffset = isPower6OwnerTurnShift ? 1 : 0;
+
   const plays = state.plays || {};
   for (let i = 0; i < players.length; i += 1){
-    const idx = (startIndex + i) % players.length;
+    const idx = (startIndex + orderOffset + i) % players.length;
     const uid = players[idx].id;
     if (!plays[uid]) return uid;
   }
