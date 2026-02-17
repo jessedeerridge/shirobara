@@ -2435,6 +2435,34 @@ function isEveryoneDecided(){
   return playedCount === playerCount;
 }
 
+function getCollectTurnOwnerId(){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'collect') return null;
+  if (isEveryoneDecided()) return null;
+
+  const players = Array.isArray(state.players) ? state.players : [];
+  if (!players.length) return null;
+
+  const starterId = state.coins?.[COIN_ID]?.ownerId ?? null;
+  if (!starterId) return null;
+
+  const startIndex = players.findIndex(p => p.id === starterId);
+  if (startIndex < 0) return null;
+
+  const plays = state.plays || {};
+  for (let i = 0; i < players.length; i += 1){
+    const idx = (startIndex + i) % players.length;
+    const uid = players[idx].id;
+    if (!plays[uid]) return uid;
+  }
+  return null;
+}
+
+function isMyCollectTurn(){
+  return getCollectTurnOwnerId() === state.userId;
+}
+
 /* =========================
    ★座席ユーティリティ
    ========================= */
@@ -3659,6 +3687,7 @@ function isRolePlayableNow() {
     if (isCoinOwnerChangeRequired()) return false;
     if (isPower5SelectionIncomplete()) return false; // ここで変更された関数を使用
     if (isEveryoneDecided()) return false;
+    if (!isMyCollectTurn()) return false;
     if (isMyPlayLockedByPower34()) return false;
     if (isMyPlayLockedByPower5Waiting()) return false;
     if (isMyPlayLockedByPower5Pass()) return false;
@@ -3909,7 +3938,10 @@ function renderMyHand(){
       card.appendChild(label);
 
       // ★既存：ドラッグ提出
-      card.addEventListener('pointerdown', (e) => startDragCard(e, { kind:'role', cardName:name }));
+      card.addEventListener('pointerdown', (e) => {
+        if (!isRolePlayableNow()) return;
+        startDragCard(e, { kind:'role', cardName:name });
+      });
 
       // ★追加（最小）：power34対象プレイヤーが「自分の手札を1回クリック」→即実行
      card.addEventListener('click', (e) => {
@@ -3944,6 +3976,7 @@ function renderMyHand(){
         if (isPower5SelectionIncomplete()) return;
         if (isMyPlayLockedByPower5Waiting()) return;
         if (isMyPlayLockedByPower5Pass()) return;
+        if (!isMyCollectTurn()) return;
         await setMyPlay({ kind:'pass' });
       });
       myHandEl.appendChild(pass);
@@ -3979,6 +4012,7 @@ async function maybeAutoPassWhenNoHand(){
   const started = !!state.game?.started;
   const phase = state.game?.phase || 'collect';
   if (!started || phase !== 'collect') return;
+  if (!isMyCollectTurn()) return;
 
   if (state.plays?.[state.userId]) return;
 
@@ -5293,6 +5327,7 @@ function startDragCard(e, payload){
   const power10Allowed = isPower10ChangeAllowed();
   if (phase !== 'collect' && !power10Allowed) return;
   if (!power10Allowed && isEveryoneDecided()) return;
+  if (!power10Allowed && !isMyCollectTurn()) return;
   if (payload.kind !== 'role') return;
 
   // ★効果3/4で選べない人はドラッグ不可
@@ -5375,6 +5410,7 @@ async function setMyPlay({ kind, cardName=null }){
   const power10Allowed = isPower10ChangeAllowed();
   if (phase !== 'collect' && !power10Allowed) return;
   if (!power10Allowed && isEveryoneDecided()) return;
+  if (!power10Allowed && !isMyCollectTurn()) return;
 
   // ★効果3/4で選べない人は「出さない」も不可
   if (!power10Allowed && isMyPlayLockedByPower34()) return;
