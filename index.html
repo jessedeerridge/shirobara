@@ -104,6 +104,16 @@
   }
   .host-selecting-pop.hidden{display:none;}
 
+  .crystal-selecting-pop{
+    position:fixed;left:50%;top:60px;transform:translateX(-50%);
+    background:rgba(20,20,20,.92);color:#fff;
+    padding:12px 16px;border-radius:14px;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+    z-index:226;font-weight:800;white-space:nowrap;
+    pointer-events:none;
+  }
+  .crystal-selecting-pop.hidden{display:none;}
+
   /* ★チップ移動不可ポップ（下固定） */
   .coin-warning-pop{
     position:fixed;left:50%;bottom:10px;transform:translateX(-50%);
@@ -1506,6 +1516,7 @@
 </div>
 
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
+<div id="crystalSelectingPop" class="crystal-selecting-pop hidden">誰かが水晶を使うプレイヤーを選択中</div>
 <div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
 <div id="crystalGuidePop" class="crystal-guide-pop hidden">水晶を使用するプレイヤーを選んでください。</div>
 
@@ -1629,6 +1640,7 @@ const roomInfoLobby = document.getElementById('roomInfoLobby');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
 
 const hostSelectingPop = document.getElementById('hostSelectingPop');
+const crystalSelectingPop = document.getElementById('crystalSelectingPop');
 const coinWarningPop = document.getElementById('coinWarningPop');
 const crystalGuidePop = document.getElementById('crystalGuidePop');
 
@@ -2404,6 +2416,7 @@ function subscribeCoins(){
     applyPlayableAnimToMyHand();
     maybeResetPower5Link();
     updateCrystalGuidePop();
+    updateCrystalSelectingPop();
   });
 }
 function subscribeDiscard(){
@@ -3705,6 +3718,7 @@ function updateGameUI(){
   applyPlayableAnimToMyHand();
   updatePower10UI();
   updateCrystalGuidePop();
+  updateCrystalSelectingPop();
 
   if (started){
     requestAnimationFrame(() => {
@@ -3735,6 +3749,23 @@ function updateCrystalGuidePop(){
   crystalGuidePop.classList.toggle('hidden', !shouldShow);
 }
 
+function updateCrystalSelectingPop(){
+  if (!crystalSelectingPop) return;
+
+  const selecting = isCoinOwnerChangeRequired();
+  const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
+  const isOtherOwnerSelecting = !!(selecting && ownerId && ownerId !== state.userId);
+
+  if (!isOtherOwnerSelecting){
+    crystalSelectingPop.classList.add('hidden');
+    return;
+  }
+
+  const ownerName = (state.players || []).find(p => p.id === ownerId)?.name || '誰か';
+  crystalSelectingPop.textContent = `${ownerName}が水晶を使うプレイヤーを選択中`;
+  crystalSelectingPop.classList.remove('hidden');
+}
+
 async function maybeClearCoinOwnerChangeLock(newOwnerId){
   const lastOwner = state.game?.lastCoinOwnerId || null;
   if (!lastOwner) return;
@@ -3758,6 +3789,7 @@ function renderHands(){
   renderPower11Arrow();
   renderPower5Link();
   updateCrystalGuidePop();
+  updateCrystalSelectingPop();
 }
 
 function renderRoundPlayTable(){
