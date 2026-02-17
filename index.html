@@ -2836,6 +2836,10 @@ function isUsingCrystalChip(uid){
   const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
   return ownerId === uid;
 }
+function getCrystalNumberForUid(uid){
+  const number = Number(state.hands?.[uid]?.numberCard);
+  return Number.isFinite(number) ? String(number) : '?';
+}
 function applyMiniHandSquareState(uid, square){
   const lost = hasLostCrystalChip(uid);
   const using = isUsingCrystalChip(uid);
@@ -2843,7 +2847,7 @@ function applyMiniHandSquareState(uid, square){
 
   square.classList.remove('hidden');
   square.classList.toggle('masked', masked);
-  square.textContent = masked ? (lost ? '0' : '1') : '';
+  square.textContent = masked ? getCrystalNumberForUid(uid) : '';
 }
 function updateMiniHandSquares(){
   for (const [uid, square] of ui.miniHandSquareByUserId){
