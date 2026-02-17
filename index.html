@@ -711,6 +711,29 @@
     justify-content:flex-end;
     gap:8px;
   }
+  .power11-close-pop{
+    position:fixed;
+    left:50%;
+    bottom:10px;
+    transform:translateX(-50%);
+    background:rgba(20,20,20,.92);
+    color:#fff;
+    padding:12px 16px;
+    border-radius:14px;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+    z-index:240;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    min-width:260px;
+    font-weight:900;
+  }
+  .power11-close-pop.hidden{display:none;}
+  .power11-close-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+  }
   .power10-ghost{
     color:#fff;
     border-color:rgba(255,255,255,.6);
@@ -1521,6 +1544,13 @@
   </div>
 </div>
 
+<div id="power11ClosePop" class="power11-close-pop hidden">
+  <div>閉じてもいいですか？</div>
+  <div class="power11-close-actions">
+    <button class="btn primary" id="btnPower11CloseYes">はい</button>
+  </div>
+</div>
+
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
 <div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
 <div id="crystalGuidePop" class="crystal-guide-pop hidden">水晶を使用するプレイヤーを選んでください。</div>
@@ -1701,6 +1731,8 @@ const btnPower10ConfirmYes = document.getElementById('btnPower10ConfirmYes');
 const power10SkipDialog = document.getElementById('power10SkipDialog');
 const btnPower10SkipNo = document.getElementById('btnPower10SkipNo');
 const btnPower10SkipYes = document.getElementById('btnPower10SkipYes');
+const power11ClosePop = document.getElementById('power11ClosePop');
+const btnPower11CloseYes = document.getElementById('btnPower11CloseYes');
 
 const powerBanner = document.getElementById('powerBanner');
 const powerBannerNum = document.getElementById('powerBannerNum');
@@ -2189,7 +2221,7 @@ function updateHostUI(){
    ========================= */
 let lastRoundSeen = 0;
 let hidePowerPopRound = null;
-let peekTimer = null;
+let isPower11PeekLockActive = false;
 
 /* ★追加：公開演出（白薔薇＋刃）を1ラウンド1回だけ */
 let lastRoseBladeAnimRound = 0;
@@ -2326,8 +2358,8 @@ function subscribeGame(){
     if (r && r !== lastRoundSeen){
       lastRoundSeen = r;
       hidePowerPopRound = null;
-      if (peekTimer){ clearTimeout(peekTimer); peekTimer = null; }
-      peekOverlay.classList.add('hidden');
+      hidePeek();
+      clearPower11PeekLock();
     }
     renderMyHand();
 
@@ -2877,6 +2909,20 @@ function showPeek(cardName){
 function hidePeek(){
   peekOverlay.classList.add('hidden');
 }
+function showPower11ClosePop(){
+  power11ClosePop.classList.remove('hidden');
+}
+function hidePower11ClosePop(){
+  power11ClosePop.classList.add('hidden');
+}
+function startPower11PeekLock(){
+  isPower11PeekLockActive = true;
+  showPower11ClosePop();
+}
+function clearPower11PeekLock(){
+  isPower11PeekLockActive = false;
+  hidePower11ClosePop();
+}
 
 /* ★効果11：矢印描画（全員） */
 let arrowRaf = null;
@@ -3191,17 +3237,10 @@ async function onOtherHandClicked(targetUid, event){
       };
     });
 
-    // 自分だけ中央に4秒表示
+    // 自分だけ中央表示し、閉じるまでは手札プレイをロック
     showPeek(pick);
-    if (peekTimer){ clearTimeout(peekTimer); }
-    peekTimer = setTimeout(() => {
-      peekTimer = null;
-      hidePeek();
-
-      // ★指定：この処理の後「下の説明黒ポップ」を消す
-      hidePowerPopRound = Number(state.game?.round || 0);
-      renderMyHand(); // すぐ反映
-    }, 4000);
+    startPower11PeekLock();
+    renderMyHand();
 
     updateSelectModeUI();
     renderPower11Arrow();
@@ -3706,6 +3745,7 @@ function isRolePlayableNow() {
     if (isMyPlayLockedByPower34()) return false;
     if (isMyPlayLockedByPower5Waiting()) return false;
     if (isMyPlayLockedByPower5Pass()) return false;
+    if (isPower11PeekLockActive) return false;
     return true;
 }
 
@@ -3991,6 +4031,7 @@ function renderMyHand(){
         if (isPower5SelectionIncomplete()) return;
         if (isMyPlayLockedByPower5Waiting()) return;
         if (isMyPlayLockedByPower5Pass()) return;
+        if (isPower11PeekLockActive) return;
         if (!isMyCollectTurn()) return;
         await setMyPlay({ kind:'pass' });
       });
@@ -4048,6 +4089,14 @@ async function maybeAutoPassWhenNoHand(){
     autoPassNoHandInFlight = false;
   }
 }
+
+btnPower11CloseYes?.addEventListener('click', () => {
+  if (!isPower11PeekLockActive) return;
+  hidePeek();
+  clearPower11PeekLock();
+  hidePowerPopRound = Number(state.game?.round || 0);
+  renderMyHand();
+});
 
 
 function fitTextToBox(spanEl, maxPx=14, minPx=9){
