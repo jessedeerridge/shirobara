@@ -3739,17 +3739,28 @@ function updateGameUI(){
 }
 
 let coinWarningTimer = null;
+let isCoinWarningShowing = false;
 function showCoinWarningPop(){
   if (!coinWarningPop) return;
+
+  isCoinWarningShowing = true;
+  if (crystalGuidePop) crystalGuidePop.classList.add('hidden');
+
   coinWarningPop.classList.remove('hidden');
   if (coinWarningTimer) clearTimeout(coinWarningTimer);
   coinWarningTimer = setTimeout(() => {
     coinWarningPop.classList.add('hidden');
+    isCoinWarningShowing = false;
+    updateCrystalGuidePop();
   }, 1600);
 }
 
 function updateCrystalGuidePop(){
   if (!crystalGuidePop) return;
+  if (isCoinWarningShowing){
+    crystalGuidePop.classList.add('hidden');
+    return;
+  }
   const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
   const shouldShow = canCurrentUserDragOwnedCrystal(ownerId);
   crystalGuidePop.classList.toggle('hidden', !shouldShow);
