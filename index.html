@@ -1697,17 +1697,6 @@
   </div>
 </div>
 
-<!-- ★ 効果7：授けますか（はい/いいえ） -->
-<div id="giveDialog" class="dialog-backdrop hidden">
-  <div class="dialog-box">
-    <p id="giveMessage">「…」に授けますか？</p>
-    <div class="dialog-buttons">
-      <button class="btn ghost" id="btnGiveNo">いいえ</button>
-      <button class="btn primary" id="btnGiveYes">はい</button>
-    </div>
-  </div>
-</div>
-
 <button id="hostSettingsBtn" class="host-settings-btn" title="設定">⚙</button>
 <button id="helpBtn" class="help-btn" title="カード効果一覧">？</button>
 
@@ -1818,11 +1807,6 @@ const kickDialog = document.getElementById('kickDialog');
 const kickMessage = document.getElementById('kickMessage');
 const btnKickYes = document.getElementById('btnKickYes');
 const btnKickNo = document.getElementById('btnKickNo');
-
-const giveDialog = document.getElementById('giveDialog');
-const giveMessage = document.getElementById('giveMessage');
-const btnGiveYes = document.getElementById('btnGiveYes');
-const btnGiveNo = document.getElementById('btnGiveNo');
 
 const hostSettingsBtn = document.getElementById('hostSettingsBtn');
 const startPop = document.getElementById('startPop');
@@ -4779,44 +4763,19 @@ btnKickYes.addEventListener('click', async (e) => {
 });
 
 /* =========================
-   効果7：授けますかダイアログ
+   効果7：霊魂付与（確認なしで即時）
    ========================= */
-let pendingGiveTargetId = null;
-let pendingGiveTargetName = null;
 let pendingPower10TargetId = null;
 let pendingPower10TargetName = null;
 
-giveDialog.addEventListener('click', (e) => {
-  if (e.target === giveDialog) {
-    giveDialog.classList.add('hidden');
-    pendingGiveTargetId = null;
-    pendingGiveTargetName = null;
-  }
-});
-btnGiveNo.addEventListener('click', (e) => {
-  e.stopPropagation();
-  giveDialog.classList.add('hidden');
-  pendingGiveTargetId = null;
-  pendingGiveTargetName = null;
-});
-btnGiveYes.addEventListener('click', async (e) => {
-  e.stopPropagation();
-  if (!state.roomCode) return;
-  if (!pendingGiveTargetId) {
-    giveDialog.classList.add('hidden');
-    return;
-  }
+async function grantSpiritToTarget(targetId){
+  if (!state.roomCode || !targetId) return;
 
   const p7 = state.game?.power7 || null;
   if (p7 && p7.used) {
-    giveDialog.classList.add('hidden');
-    pendingGiveTargetId = null;
-    pendingGiveTargetName = null;
     updatePower7UI();
     return;
   }
-
-  const targetId = pendingGiveTargetId;
 
   await runTransaction(ref(db, `rooms/${state.roomCode}/hands/${targetId}/roleCards`), (cur) => {
     const arr = Array.isArray(cur) ? [...cur] : [];
@@ -4837,11 +4796,8 @@ btnGiveYes.addEventListener('click', async (e) => {
     return cur;
   });
 
-  giveDialog.classList.add('hidden');
-  pendingGiveTargetId = null;
-  pendingGiveTargetName = null;
   updatePower7UI();
-});
+}
 
 /* =========================
    効果10：選択/確認/変更
@@ -6323,7 +6279,7 @@ function startDragSpirit(e){
     moveSpiritGhost(ev.clientX, ev.clientY);
   };
 
-  const onUp = (ev) => {
+  const onUp = async (ev) => {
     if (!spiritDrag || ev.pointerId !== spiritDrag.pointerId) return;
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
@@ -6336,11 +6292,7 @@ function startDragSpirit(e){
     const hitUid = getHandcircleHitUserId(ev.clientX, ev.clientY);
     if (!hitUid) return;
 
-    const targetName = (state.players || []).find(p => p.id === hitUid)?.name || '誰か';
-    pendingGiveTargetId = hitUid;
-    pendingGiveTargetName = targetName;
-    giveMessage.textContent = `「${targetName}」に授けますか？`;
-    giveDialog.classList.remove('hidden');
+    await grantSpiritToTarget(hitUid);
   };
 
   window.addEventListener('pointermove', onMove);
