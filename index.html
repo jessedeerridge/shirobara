@@ -5352,8 +5352,9 @@ function startDragCard(e, payload){
   target.classList.add('dragging');
 
   const ghost = target.cloneNode(true);
-  ghost.classList.remove('dragging');
+  ghost.classList.remove('dragging', 'playable');
   ghost.classList.add('drag-ghost');
+  ghost.style.transform = 'translate(-50%, -50%)';
   mainEl.appendChild(ghost);
 
   drag = {
