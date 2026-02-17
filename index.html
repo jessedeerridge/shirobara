@@ -583,6 +583,9 @@
   .role-card.playable.dragging{
     animation: none !important;
   }
+  .role-card.dragging{
+    opacity:0;
+  }
 
   /* “出さない”カード（同サイズ・点線グレー枠） */
   .pass-card{
@@ -5349,7 +5352,9 @@ function startDragCard(e, payload){
   target.classList.add('dragging');
 
   const ghost = target.cloneNode(true);
+  ghost.classList.remove('dragging', 'playable');
   ghost.classList.add('drag-ghost');
+  ghost.style.transform = 'translate(-50%, -50%)';
   mainEl.appendChild(ghost);
 
   drag = {
