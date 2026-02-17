@@ -2322,6 +2322,75 @@ async function restoreSeatFromDB(){
   if (mySeatIndex !== null) state.seatedTable = mySeatIndex;
 }
 
+function deepReplaceUid(value, fromUid, toUid){
+  if (value === fromUid) return toUid;
+  if (Array.isArray(value)) return value.map(v => deepReplaceUid(v, fromUid, toUid));
+  if (value && typeof value === 'object'){
+    const out = {};
+    for (const [k, v] of Object.entries(value)){
+      const nk = (k === fromUid) ? toUid : k;
+      out[nk] = deepReplaceUid(v, fromUid, toUid);
+    }
+    return out;
+  }
+  return value;
+}
+
+async function transferSeatState(fromUid, toUid){
+  if (!state.roomCode || !fromUid || !toUid || fromUid === toUid) return;
+
+  const base = `rooms/${state.roomCode}`;
+  const [
+    handsSnap,
+    playsSnap,
+    roundPlaysSnap,
+    coinsSnap,
+    gameSnap,
+    usersSnap
+  ] = await Promise.all([
+    get(ref(db, `${base}/hands`)),
+    get(ref(db, `${base}/plays`)),
+    get(ref(db, `${base}/roundPlays`)),
+    get(ref(db, `${base}/coins`)),
+    get(ref(db, `${base}/game`)),
+    get(ref(db, `${base}/users`))
+  ]);
+
+  const hands = handsSnap.val() || {};
+  if (Object.prototype.hasOwnProperty.call(hands, fromUid)){
+    hands[toUid] = hands[fromUid];
+  }
+
+  const plays = playsSnap.val() || {};
+  if (Object.prototype.hasOwnProperty.call(plays, fromUid)){
+    plays[toUid] = plays[fromUid];
+  }
+
+  const roundPlays = roundPlaysSnap.val() || {};
+  if (Object.prototype.hasOwnProperty.call(roundPlays, fromUid)){
+    roundPlays[toUid] = roundPlays[fromUid];
+  }
+
+  const users = usersSnap.val() || {};
+  if (Object.prototype.hasOwnProperty.call(users, fromUid)){
+    users[toUid] = users[fromUid];
+  }
+
+  const coinsRaw = coinsSnap.val() || {};
+  const coins = deepReplaceUid(coinsRaw, fromUid, toUid);
+  const gameRaw = gameSnap.val() || {};
+  const game = deepReplaceUid(gameRaw, fromUid, toUid);
+
+  await Promise.all([
+    set(ref(db, `${base}/hands`), hands),
+    set(ref(db, `${base}/plays`), Object.keys(plays).length ? plays : null),
+    set(ref(db, `${base}/roundPlays`), Object.keys(roundPlays).length ? roundPlays : null),
+    set(ref(db, `${base}/coins`), Object.keys(coins).length ? coins : null),
+    set(ref(db, `${base}/game`), game),
+    set(ref(db, `${base}/users`), users)
+  ]);
+}
+
 function refreshRoomLabels(){
   if (!state.roomCode || !state.userName) return;
   const label = state.isHost ? '（ホスト）' : '';
@@ -4633,7 +4702,7 @@ function renderPlayerCircle(players){
   if (!players.length) return;
 
   const n = players.length;
-  const radiusPct = 55;
+  const radiusPct = 50;
   const step = (2 * Math.PI) / n;
   const anchorAngle = Math.PI / 2;
   const meIndex = players.findIndex(p => p.id === state.userId);
@@ -4772,6 +4841,9 @@ btnKickYes.addEventListener('click', async (e) => {
   const roomData = roomSnap.val() || {};
 
   const tRef = ref(db, `rooms/${state.roomCode}/tables/${seatIndex}`);
+  if (pendingSeatPlayerIdToSteal) {
+    await transferSeatState(pendingSeatPlayerIdToSteal, state.userId);
+  }
   await set(tRef, { playerId: state.userId, playerName: state.userName || '名無し' });
 
   if (roomData.hostId && pendingSeatPlayerIdToSteal && roomData.hostId === pendingSeatPlayerIdToSteal) {
