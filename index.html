@@ -1,5 +1,5 @@
 
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
@@ -446,19 +446,27 @@
     transition: left 0.45s ease, top 0.45s ease;
     will-change: left, top;
   }
-  /* ★更新：全員提出後シャッフルは効果3/4と同じ（傾けて固定＋上2枚のみ横スライド） */
+  /* ★更新：全員提出後、中央に寄せたカード束の上2枚でシャッフル */
   .played-back.shuffling{
     --collect-base-rot:5deg;
     --collect-offset-x:4px;
     --collect-offset-y:4px;
     --collect-slide-x:66px;
+    --collect-dur-out:220ms;
+    --collect-dur-in:220ms;
+    --collect-pause:20ms;
+    --collect-loop-count:3;
+    --collect-loop-ms:calc(var(--collect-dur-out) + var(--collect-dur-in) + var(--collect-pause));
     transform:translate(
       calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-x))),
       calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-y)))
     ) rotate(var(--collect-base-rot));
   }
   .played-back.shuffling.slide-card{
-    animation: collectPower34Slide 460ms linear 2 both;
+    animation: collectPower34Slide var(--collect-loop-ms) ease-in-out var(--collect-loop-count) both;
+  }
+  .played-back.shuffling.slide-card-alt{
+    animation-delay: calc(var(--collect-loop-ms) / 2);
   }
   .played-x.shuffling{
     /* シャッフル中はその場でフェードアウトして消えるだけ */
@@ -2458,7 +2466,7 @@ function subscribeGame(){
     // ★追加：効果5リンク更新
     renderPower5Link();
     maybeResetPower5Link();
-    updateHandmarks(); 
+    updateHandmarks();
     updateMiniHandSquares();
   });
 }
@@ -2809,11 +2817,11 @@ function isPower5SelectionIncomplete() {
     if (!started || phase !== 'collect') return false;
     const pd = state.game?.powerDisplay || null;
     if (!pd || Number(pd.number) !== 5) return false;
-    
+
     // ★変更箇所：他プレイヤーの中で手札が1枚以上あるプレイヤーが2人以上いない場合はfalseを返す
     // これにより、選択が完了していなくても提出をブロックしない
     if (countOtherPlayersWithHands() < 2) return false;
-    
+
     const p5 = getPower5State();
     if (!p5 || p5.ownerId !== pd.ownerId) return true;
     const targets = Array.isArray(p5.targets) ? p5.targets : [];
@@ -2846,10 +2854,10 @@ function isMyPower5Selectable() {
     if (!started || phase !== 'collect') return false;
     if (!isMyPowerDisplay(5)) return false;
     if (isPower5SelectionLocked()) return false;
-    
+
     // ★変更箇所：他プレイヤーの中で手札が1枚以上あるプレイヤーが2人以上いない場合は選択不可
     if (countOtherPlayersWithHands() < 2) return false;
-    
+
     return true;
 }
 
@@ -4957,6 +4965,12 @@ window.addEventListener('resize', handleViewportResize);
 
 const COLLECT_SHUFFLE_GATHER_MS = 450;
 const COLLECT_SHUFFLE_PAUSE_MS = 30;
+const COLLECT_SHUFFLE_OUT_MS = 220;
+const COLLECT_SHUFFLE_IN_MS = 220;
+const COLLECT_SHUFFLE_STEP_PAUSE_MS = 20;
+const COLLECT_SHUFFLE_LOOP_COUNT = 3;
+const COLLECT_SHUFFLE_LOOP_MS = COLLECT_SHUFFLE_OUT_MS + COLLECT_SHUFFLE_IN_MS + COLLECT_SHUFFLE_STEP_PAUSE_MS;
+const COLLECT_SHUFFLE_TOTAL_MS = COLLECT_SHUFFLE_GATHER_MS + COLLECT_SHUFFLE_PAUSE_MS + (COLLECT_SHUFFLE_LOOP_MS * COLLECT_SHUFFLE_LOOP_COUNT);
 function renderPlayedMarkers(){
   const plays = state.plays || {};
   const started = !!state.game?.started;
@@ -5063,9 +5077,12 @@ function renderPlayedMarkers(){
       const stackPos = roleIdsForShuffle.indexOf(uid);
       const depth = stackPos >= 0 ? Math.max(roleIdsForShuffle.length - 1 - stackPos, 0) : 0;
       marker.style.setProperty('--stack-depth', String(depth));
-      marker.classList.toggle('slide-card', collectShuffleSlideReady && stackPos >= 0 && stackPos >= roleIdsForShuffle.length - 2);
+      const isTopCard = stackPos >= 0 && stackPos === roleIdsForShuffle.length - 1;
+      const isSecondCard = stackPos >= 0 && stackPos === roleIdsForShuffle.length - 2;
+      marker.classList.toggle('slide-card', collectShuffleSlideReady && (isTopCard || isSecondCard));
+      marker.classList.toggle('slide-card-alt', collectShuffleSlideReady && isSecondCard);
     } else {
-      marker.classList.remove('shuffling', 'slide-card');
+      marker.classList.remove('shuffling', 'slide-card', 'slide-card-alt');
       marker.style.removeProperty('--stack-depth');
       marker.style.left = `${point.x}px`;
       marker.style.top  = `${point.y}px`;
@@ -5282,7 +5299,7 @@ function maybeHostAdvanceRound(){
   if (phase === 'shuffle'){
     const t = Number(state.game.shuffleStartedAt || 0);
     const now = Date.now();
-    const remain = (t ? (1000 - (now - t)) : 0);
+    const remain = (t ? (COLLECT_SHUFFLE_TOTAL_MS - (now - t)) : 0);
 
     if (remain <= 0){
       hostStepShuffleToTable();
