@@ -446,30 +446,39 @@
     transition: left 0.45s ease, top 0.45s ease;
     will-change: left, top;
   }
-  /* ★更新：シャッフル時はカードだけアニメ、✕は消す */
+  /* ★更新：全員提出後のシャッフルは、効果3/4と同じスライド演出 */
   .played-back.shuffling{
-    animation: miniShuffle 1s ease-in-out both;
+    animation: power34StyleShuffle 1180ms ease-in-out both;
   }
   .played-x.shuffling{
     /* シャッフル中はその場でフェードアウトして消えるだけ */
     opacity:0;
     transform:translate(-50%,-50%);
   }
-  @keyframes miniShuffle{
+  @keyframes power34StyleShuffle{
     0%{
-      transform:translate(-50%,-50%) rotate(0deg);
+      transform:translate(-50%,-50%) rotate(5deg);
     }
-    25%{
-      transform:translate(calc(-50% + var(--sx1)), calc(-50% + var(--sy1))) rotate(var(--sr1));
+    20%{
+      transform:translate(calc(-50% + 4px), calc(-50% + 4px)) rotate(5deg);
     }
-    55%{
-      transform:translate(calc(-50% + var(--sx2)), calc(-50% + var(--sy2))) rotate(var(--sr2));
+    39%{
+      transform:translate(calc(-50% + 66px), calc(-50% + 0px)) rotate(10deg);
+    }
+    58%{
+      transform:translate(calc(-50% + 4px), calc(-50% + 4px)) rotate(5deg);
+    }
+    62%{
+      transform:translate(calc(-50% + 4px), calc(-50% + 4px)) rotate(5deg);
     }
     80%{
-      transform:translate(calc(-50% + var(--sx3)), calc(-50% + var(--sy3))) rotate(var(--sr3));
+      transform:translate(calc(-50% + 66px), calc(-50% + 0px)) rotate(10deg);
+    }
+    98%{
+      transform:translate(calc(-50% + 4px), calc(-50% + 4px)) rotate(5deg);
     }
     100%{
-      transform:translate(-50%,-50%) rotate(0deg);
+      transform:translate(calc(-50% + 4px), calc(-50% + 4px)) rotate(5deg);
     }
   }
 
