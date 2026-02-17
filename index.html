@@ -2370,6 +2370,7 @@ function subscribeGame(){
       hidePeek();
       clearPower11PeekLock();
     }
+    syncPower11PeekFromGame();
     renderMyHand();
 
     updateGameUI();
@@ -2932,6 +2933,30 @@ function clearPower11PeekLock(){
   isPower11PeekLockActive = false;
   hidePower11ClosePop();
 }
+function syncPower11PeekFromGame(){
+  const p11 = state.game?.power11 || null;
+  const round = Number(state.game?.round || 0);
+  const phase = state.game?.phase || 'collect';
+
+  const shouldShow =
+    !!p11 &&
+    !!p11.used &&
+    Number(p11.round || 0) === round &&
+    p11.ownerId === state.userId &&
+    !p11.closedAt &&
+    !!p11.peekCard &&
+    phase === 'collect';
+
+  if (!shouldShow){
+    hidePeek();
+    clearPower11PeekLock();
+    return;
+  }
+
+  const targetPlayerName = (state.players || []).find(p => p.id === p11.toUid)?.name || '誰か';
+  showPeek(p11.peekCard, targetPlayerName);
+  startPower11PeekLock();
+}
 
 /* ★効果11：矢印描画（全員） */
 let arrowRaf = null;
@@ -3240,6 +3265,7 @@ async function onOtherHandClicked(targetUid, event){
         toUid: targetUid,
         used: true,
         shownAt: now,
+        peekCard: pick,
         closedAt: null,
         closedBy: null
       };
@@ -4338,6 +4364,7 @@ function subscribePlayers(){
 
     // ★追加
     updateSelectModeUI();
+    syncPower11PeekFromGame();
     renderPower11Arrow();
   });
 }
