@@ -446,30 +446,37 @@
     transition: left 0.45s ease, top 0.45s ease;
     will-change: left, top;
   }
-  /* ★更新：シャッフル時はカードだけアニメ、✕は消す */
+  /* ★更新：全員提出後シャッフルは効果3/4と同じ（傾けて固定＋上2枚のみ横スライド） */
   .played-back.shuffling{
-    animation: miniShuffle 1s ease-in-out both;
+    --collect-base-rot:5deg;
+    --collect-offset-x:4px;
+    --collect-offset-y:4px;
+    --collect-slide-x:42px;
+    transform:translate(
+      calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-x))),
+      calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-y)))
+    ) rotate(var(--collect-base-rot));
+  }
+  .played-back.shuffling.slide-card{
+    animation: collectPower34Slide 420ms ease-in-out infinite alternate;
   }
   .played-x.shuffling{
     /* シャッフル中はその場でフェードアウトして消えるだけ */
     opacity:0;
     transform:translate(-50%,-50%);
   }
-  @keyframes miniShuffle{
-    0%{
-      transform:translate(-50%,-50%) rotate(0deg);
+  @keyframes collectPower34Slide{
+    from{
+      transform:translate(
+        calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-x))),
+        calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-y)))
+      ) rotate(var(--collect-base-rot));
     }
-    25%{
-      transform:translate(calc(-50% + var(--sx1)), calc(-50% + var(--sy1))) rotate(var(--sr1));
-    }
-    55%{
-      transform:translate(calc(-50% + var(--sx2)), calc(-50% + var(--sy2))) rotate(var(--sr2));
-    }
-    80%{
-      transform:translate(calc(-50% + var(--sx3)), calc(-50% + var(--sy3))) rotate(var(--sr3));
-    }
-    100%{
-      transform:translate(-50%,-50%) rotate(0deg);
+    to{
+      transform:translate(
+        calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-x)) + var(--collect-slide-x)),
+        calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-y)))
+      ) rotate(calc(var(--collect-base-rot) + 1.4deg));
     }
   }
 
@@ -4985,6 +4992,10 @@ function renderPlayedMarkers(){
   const shuffleY = discardRect.top + discardRect.height/2;
   const shufflePoint = clientToMainCoords(shuffleX, shuffleY);
 
+  const roleIdsForShuffle = isShuffle
+    ? Object.keys(plays).filter(id => plays[id]?.kind !== 'pass')
+    : [];
+
   for (const uid of Object.keys(plays)){
     const p = plays[uid];
     if (!p) continue;
@@ -5053,8 +5064,14 @@ function renderPlayedMarkers(){
       marker.classList.add('shuffling');
       marker.style.left = `${shufflePoint.x}px`;
       marker.style.top  = `${shufflePoint.y}px`;
+
+      const stackPos = roleIdsForShuffle.indexOf(uid);
+      const depth = stackPos >= 0 ? Math.max(roleIdsForShuffle.length - 1 - stackPos, 0) : 0;
+      marker.style.setProperty('--stack-depth', String(depth));
+      marker.classList.toggle('slide-card', stackPos >= 0 && stackPos >= roleIdsForShuffle.length - 2);
     } else {
-      marker.classList.remove('shuffling');
+      marker.classList.remove('shuffling', 'slide-card');
+      marker.style.removeProperty('--stack-depth');
       marker.style.left = `${point.x}px`;
       marker.style.top  = `${point.y}px`;
     }
