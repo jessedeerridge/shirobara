@@ -1687,7 +1687,6 @@
 <div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
 <div id="crystalGuidePop" class="crystal-guide-pop hidden">水晶を使用するプレイヤーを選んでください。</div>
 <div id="power112GuidePop" class="crystal-guide-pop hidden">カードを出させるプレイヤーを選択してください。</div>
-<div id="spiritGuidePop" class="crystal-guide-pop hidden">霊魂を与えるプレイヤーを選んで、カードをドラッグしてください。</div>
 <div id="crystalSelectingTopPop" class="crystal-selecting-top-pop hidden">誰かが水晶を使うプレイヤーを選択中</div>
 
 <div id="seatPop" class="seat-pop hidden">
@@ -1815,7 +1814,6 @@ const hostSelectingPop = document.getElementById('hostSelectingPop');
 const coinWarningPop = document.getElementById('coinWarningPop');
 const crystalGuidePop = document.getElementById('crystalGuidePop');
 const power112GuidePop = document.getElementById('power112GuidePop');
-const spiritGuidePop = document.getElementById('spiritGuidePop');
 const crystalSelectingTopPop = document.getElementById('crystalSelectingTopPop');
 
 const seatPop = document.getElementById('seatPop');
@@ -1940,7 +1938,7 @@ const POWER_TEXT = {
   4: "左隣りのプレイヤーはカードがあるなら、ランダムでカードを出す。",
   5: "指名した二人は必ず同じ行動を行う。\n（後の人が先の人をまねる。）",
   6: "全員がカードを出し終わった後に、\n自分がカードを出すかどうか決められる。",
-  7: "あなたが指名した人は幽魂一枚を得る。",
+  7: "霊魂を与えるプレイヤーを選んで、\nそのプレイヤーの手札までカードをドラッグしてください。",
   8: "左右のプレイヤーは、カードがあれば\n必ず出さなければならない。",
   9: "暗刃の者以外は目を閉じ、\n白薔薇と司教の二人は身分を明かさずに手をあげる。",
   10:"全員がカードを出し終わった後に、一人選ぶ。\nその人は出したカードを違うカードと交換する。",
@@ -4035,12 +4033,6 @@ function isPower7GivePendingForMe(){
   return !!pd && Number(pd.number) === 7 && pd.ownerId === state.userId && !(p7 && p7.used);
 }
 
-function updateSpiritGuidePop(){
-  if (!spiritGuidePop) return;
-  const shouldShow = isPower7GivePendingForMe();
-  spiritGuidePop.classList.toggle('hidden', !shouldShow);
-}
-
 function updatePower112GuidePop(){
   if (!power112GuidePop) return;
   const shouldShow = isMyPlayLockedByPower112Selection();
@@ -4119,7 +4111,6 @@ function updateGameUI(){
   updatePower10UI();
   updateCrystalGuidePop();
   updatePower112GuidePop();
-  updateSpiritGuidePop();
   updateCrystalSelectingTopPop();
 
   if (started){
@@ -6392,7 +6383,6 @@ function updatePower7UI(){
     spiritCard.style.visibility = '';
   }
 
-  updateSpiritGuidePop();
   updateSpiritDropTargets();
 }
 
@@ -6425,7 +6415,6 @@ function startDragSpirit(e){
 
   spiritCard.style.visibility = 'hidden';
   spiritDrag = { pointerId, ghost };
-  updateSpiritGuidePop();
   updateSpiritDropTargets();
 
   moveSpiritGhost(e.clientX, e.clientY);
@@ -6443,7 +6432,6 @@ function startDragSpirit(e){
     spiritDrag.ghost.remove();
     spiritDrag = null;
     spiritCard.style.visibility = '';
-    updateSpiritGuidePop();
     updateSpiritDropTargets();
 
     const hitUid = getHandcircleHitUserId(ev.clientX, ev.clientY);
