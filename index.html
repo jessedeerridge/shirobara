@@ -711,6 +711,33 @@
     justify-content:flex-end;
     gap:8px;
   }
+  .power11-close-pop{
+    position:fixed;
+    left:50%;
+    bottom:10px;
+    transform:translateX(-50%);
+    background:rgba(20,20,20,.92);
+    color:#fff;
+    padding:12px 16px;
+    border-radius:14px;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+    z-index:240;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    min-width:260px;
+    font-weight:900;
+  }
+  .power11-close-pop.hidden{display:none;}
+  .power11-close-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+  }
+  .power11-close-yes{
+    color:#fff;
+    border-color:rgba(255,255,255,.75);
+  }
   .power10-ghost{
     color:#fff;
     border-color:rgba(255,255,255,.6);
@@ -1070,7 +1097,7 @@
     pointer-events:none;
   }
   .peek-overlay.hidden{display:none;}
-  .peek-card{
+ .peek-card{
     width:96px;
     height:144px;
     border-radius:14px;
@@ -1085,17 +1112,22 @@
     justify-content:center;
     box-sizing:border-box;
     padding:8px;
+    overflow:visible;
   }
  .peek-label{
+    position:absolute;
+    top:-30px;
+    left:50%;
+    transform:translateX(-50%);
     font-size:12px;
     font-weight:1000;
-    color:#111;
-    background:rgba(255,255,255,.78);
-    border:1px solid rgba(0,0,0,.12);
+    color:#fff;
+    background:rgba(0,0,0,.84);
+    border:1px solid rgba(255,255,255,.28);
     border-radius:999px;
     padding:2px 8px;
-    text-shadow:0 1px 0 rgba(255,255,255,.6);
-    display:none;
+    display:block;
+    white-space:nowrap;
   }
 
   /* =========================
@@ -1521,6 +1553,13 @@
   </div>
 </div>
 
+<div id="power11ClosePop" class="power11-close-pop hidden">
+  <div>閉じてもいいですか？</div>
+  <div class="power11-close-actions">
+    <button class="btn ghost power11-close-yes" id="btnPower11CloseYes">はい</button>
+  </div>
+</div>
+
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
 <div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
 <div id="crystalGuidePop" class="crystal-guide-pop hidden">水晶を使用するプレイヤーを選んでください。</div>
@@ -1701,6 +1740,8 @@ const btnPower10ConfirmYes = document.getElementById('btnPower10ConfirmYes');
 const power10SkipDialog = document.getElementById('power10SkipDialog');
 const btnPower10SkipNo = document.getElementById('btnPower10SkipNo');
 const btnPower10SkipYes = document.getElementById('btnPower10SkipYes');
+const power11ClosePop = document.getElementById('power11ClosePop');
+const btnPower11CloseYes = document.getElementById('btnPower11CloseYes');
 
 const powerBanner = document.getElementById('powerBanner');
 const powerBannerNum = document.getElementById('powerBannerNum');
@@ -2189,7 +2230,7 @@ function updateHostUI(){
    ========================= */
 let lastRoundSeen = 0;
 let hidePowerPopRound = null;
-let peekTimer = null;
+let isPower11PeekLockActive = false;
 
 /* ★追加：公開演出（白薔薇＋刃）を1ラウンド1回だけ */
 let lastRoseBladeAnimRound = 0;
@@ -2326,9 +2367,10 @@ function subscribeGame(){
     if (r && r !== lastRoundSeen){
       lastRoundSeen = r;
       hidePowerPopRound = null;
-      if (peekTimer){ clearTimeout(peekTimer); peekTimer = null; }
-      peekOverlay.classList.add('hidden');
+      hidePeek();
+      clearPower11PeekLock();
     }
+    syncPower11PeekFromGame();
     renderMyHand();
 
     updateGameUI();
@@ -2868,14 +2910,52 @@ function showPower10ConfirmAt(clientX, clientY){
 }
 
 /* ★効果11：覗き見表示 */
-function showPeek(cardName){
+function showPeek(cardName, targetPlayerName){
   const url = ASSET.roleFront[cardName] || '';
   peekCard.style.backgroundImage = url ? `url('${url}')` : '';
-  peekLabel.textContent = cardName || '—';
+  peekLabel.textContent = targetPlayerName || '誰か';
   peekOverlay.classList.remove('hidden');
 }
 function hidePeek(){
   peekOverlay.classList.add('hidden');
+}
+function showPower11ClosePop(){
+  power11ClosePop.classList.remove('hidden');
+}
+function hidePower11ClosePop(){
+  power11ClosePop.classList.add('hidden');
+}
+function startPower11PeekLock(){
+  isPower11PeekLockActive = true;
+  showPower11ClosePop();
+}
+function clearPower11PeekLock(){
+  isPower11PeekLockActive = false;
+  hidePower11ClosePop();
+}
+function syncPower11PeekFromGame(){
+  const p11 = state.game?.power11 || null;
+  const round = Number(state.game?.round || 0);
+  const phase = state.game?.phase || 'collect';
+
+  const shouldShow =
+    !!p11 &&
+    !!p11.used &&
+    Number(p11.round || 0) === round &&
+    p11.ownerId === state.userId &&
+    !p11.closedAt &&
+    !!p11.peekCard &&
+    phase === 'collect';
+
+  if (!shouldShow){
+    hidePeek();
+    clearPower11PeekLock();
+    return;
+  }
+
+  const targetPlayerName = (state.players || []).find(p => p.id === p11.toUid)?.name || '誰か';
+  showPeek(p11.peekCard, targetPlayerName);
+  startPower11PeekLock();
 }
 
 /* ★効果11：矢印描画（全員） */
@@ -2898,15 +2978,13 @@ function renderPower11Arrow(){
 
   const p11 = state.game?.power11 || null;
   const round = Number(state.game?.round || 0);
-  const now = Date.now();
-
   const active =
     !!p11 &&
     !!p11.used &&
     Number(p11.round || 0) === round &&
     !!p11.ownerId &&
     !!p11.toUid &&
-    Number(p11.endsAt || 0) > now;
+    !p11.closedAt;
 
   if (!active){
     arrowLayer.classList.add('hidden');
@@ -2921,8 +2999,7 @@ function renderPower11Arrow(){
 
   const tick = () => {
     const p11now = state.game?.power11 || null;
-    const now2 = Date.now();
-    if (!p11now || !p11now.used || Number(p11now.round || 0) !== round || Number(p11now.endsAt || 0) <= now2){
+    if (!p11now || !p11now.used || Number(p11now.round || 0) !== round || !!p11now.closedAt){
       arrowLayer.classList.add('hidden');
       stopArrowLoop();
       return;
@@ -3170,6 +3247,7 @@ async function onOtherHandClicked(targetUid, event){
     if (!arr.length) return;
 
     const pick = arr[Math.floor(Math.random() * arr.length)];
+    const targetPlayerName = (state.players || []).find(p => p.id === targetUid)?.name || '誰か';
     const now = Date.now();
     const round = Number(state.game?.round || 1);
 
@@ -3187,21 +3265,16 @@ async function onOtherHandClicked(targetUid, event){
         toUid: targetUid,
         used: true,
         shownAt: now,
-        endsAt: now + 4000
+        peekCard: pick,
+        closedAt: null,
+        closedBy: null
       };
     });
 
-    // 自分だけ中央に4秒表示
-    showPeek(pick);
-    if (peekTimer){ clearTimeout(peekTimer); }
-    peekTimer = setTimeout(() => {
-      peekTimer = null;
-      hidePeek();
-
-      // ★指定：この処理の後「下の説明黒ポップ」を消す
-      hidePowerPopRound = Number(state.game?.round || 0);
-      renderMyHand(); // すぐ反映
-    }, 4000);
+    // 自分だけ中央表示し、閉じるまでは手札プレイをロック
+    showPeek(pick, targetPlayerName);
+    startPower11PeekLock();
+    renderMyHand();
 
     updateSelectModeUI();
     renderPower11Arrow();
@@ -3700,12 +3773,14 @@ function isRolePlayableNow() {
     }
     if (isFirstRoundWithoutCrystalOwner()) return false;
     if (isCoinOwnerChangeRequired()) return false;
+    if (isMyPower11Selectable()) return false;
     if (isPower5SelectionIncomplete()) return false; // ここで変更された関数を使用
     if (isEveryoneDecided()) return false;
     if (!isMyCollectTurn()) return false;
     if (isMyPlayLockedByPower34()) return false;
     if (isMyPlayLockedByPower5Waiting()) return false;
     if (isMyPlayLockedByPower5Pass()) return false;
+    if (isPower11PeekLockActive) return false;
     return true;
 }
 
@@ -3988,9 +4063,11 @@ function renderMyHand(){
       pass.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (isCoinOwnerChangeRequired()) return;
+        if (isMyPower11Selectable()) return;
         if (isPower5SelectionIncomplete()) return;
         if (isMyPlayLockedByPower5Waiting()) return;
         if (isMyPlayLockedByPower5Pass()) return;
+        if (isPower11PeekLockActive) return;
         if (!isMyCollectTurn()) return;
         await setMyPlay({ kind:'pass' });
       });
@@ -4048,6 +4125,30 @@ async function maybeAutoPassWhenNoHand(){
     autoPassNoHandInFlight = false;
   }
 }
+
+btnPower11CloseYes?.addEventListener('click', async () => {
+  if (!isPower11PeekLockActive) return;
+
+  const round = Number(state.game?.round || 0);
+  if (state.roomCode && round){
+    await runTransaction(ref(db, `rooms/${state.roomCode}/game/power11`), (cur) => {
+      const c = cur || {};
+      if (!c.used || Number(c.round || 0) !== round) return c;
+      if (c.ownerId !== state.userId) return c;
+      if (c.closedAt) return c;
+      return {
+        ...c,
+        closedAt: Date.now(),
+        closedBy: state.userId
+      };
+    });
+  }
+
+  hidePeek();
+  clearPower11PeekLock();
+  hidePowerPopRound = round;
+  renderMyHand();
+});
 
 
 function fitTextToBox(spanEl, maxPx=14, minPx=9){
@@ -4263,6 +4364,7 @@ function subscribePlayers(){
 
     // ★追加
     updateSelectModeUI();
+    syncPower11PeekFromGame();
     renderPower11Arrow();
   });
 }
@@ -4369,7 +4471,7 @@ function renderPlayerCircle(players){
   if (!players.length) return;
 
   const n = players.length;
-  const radiusPct = 60;
+  const radiusPct = 55;
   const step = (2 * Math.PI) / n;
   const anchorAngle = Math.PI / 2;
   const meIndex = players.findIndex(p => p.id === state.userId);
