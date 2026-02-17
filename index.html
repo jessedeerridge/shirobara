@@ -240,6 +240,16 @@
     /* ★center-area(5)より前 */
     z-index: 120;
   }
+  .player-tag .mini-hand-square.masked{
+    background-image:none;
+    background-color:#000;
+    border:1px solid rgba(255,255,255,.35);
+    color:#fff;
+    font-size:12px;
+    font-weight:900;
+    display:grid;
+    place-items:center;
+  }
   .player-tag.right-half .mini-hand-square{
     left:calc(50% + 38px);
   }
@@ -2821,9 +2831,27 @@ function getRoleCount(uid){
 function hasLostCrystalChip(uid){
   return !!(uid && state.game?.chipLosses && state.game.chipLosses[uid]);
 }
+function isUsingCrystalChip(uid){
+  if (!uid) return false;
+  const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
+  return ownerId === uid;
+}
+function getCrystalNumberForUid(uid){
+  const number = Number(state.hands?.[uid]?.numberCard);
+  return Number.isFinite(number) ? String(number) : '?';
+}
+function applyMiniHandSquareState(uid, square){
+  const lost = hasLostCrystalChip(uid);
+  const using = isUsingCrystalChip(uid);
+  const masked = lost || using;
+
+  square.classList.remove('hidden');
+  square.classList.toggle('masked', masked);
+  square.textContent = masked ? getCrystalNumberForUid(uid) : '';
+}
 function updateMiniHandSquares(){
   for (const [uid, square] of ui.miniHandSquareByUserId){
-    square.classList.toggle('hidden', hasLostCrystalChip(uid));
+    applyMiniHandSquareState(uid, square);
   }
 }
 function isCoinOwnerChangeRequired(){
@@ -4754,7 +4782,7 @@ function renderPlayerCircle(players){
 
       const square = document.createElement('div');
       square.className = 'mini-hand-square';
-      square.classList.toggle('hidden', hasLostCrystalChip(p.id));
+      applyMiniHandSquareState(p.id, square);
 
       const count = roleCount;
       const spread = 70;
