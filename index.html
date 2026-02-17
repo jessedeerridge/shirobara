@@ -125,6 +125,16 @@
   }
   .crystal-guide-pop.hidden{display:none;}
 
+  .crystal-selecting-top-pop{
+    position:fixed;left:50%;top:68px;transform:translateX(-50%);
+    background:rgba(20,20,20,.92);color:#fff;
+    padding:10px 14px;border-radius:12px;
+    box-shadow:0 16px 36px rgba(0,0,0,.35);
+    z-index:410;font-weight:900;white-space:nowrap;
+    pointer-events:none;
+  }
+  .crystal-selecting-top-pop.hidden{display:none;}
+
   /* ★ プレイヤー円配置用 */
   .player-circle{
     position:relative;
@@ -1508,6 +1518,7 @@
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
 <div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
 <div id="crystalGuidePop" class="crystal-guide-pop hidden">水晶を使用するプレイヤーを選んでください。</div>
+<div id="crystalSelectingTopPop" class="crystal-selecting-top-pop hidden">誰かが水晶を使うプレイヤーを選択中</div>
 
 <div id="seatPop" class="seat-pop hidden">
 
@@ -1631,6 +1642,7 @@ const copyLinkBtn = document.getElementById('copyLinkBtn');
 const hostSelectingPop = document.getElementById('hostSelectingPop');
 const coinWarningPop = document.getElementById('coinWarningPop');
 const crystalGuidePop = document.getElementById('crystalGuidePop');
+const crystalSelectingTopPop = document.getElementById('crystalSelectingTopPop');
 
 const seatPop = document.getElementById('seatPop');
 const seatTabs = document.getElementById('seatTabs');
@@ -2557,6 +2569,15 @@ function canCurrentUserDragOwnedCrystal(ownerId){
   if (!ownerId) return false;
   if (!isCoinOwnerChangeRequired()) return false;
   return ownerId === state.userId;
+}
+function isFirstRoundWithoutCrystalOwner(){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'collect') return false;
+  const round = Number(state.game?.round || 0);
+  if (round !== 1) return false;
+  const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
+  return !ownerId;
 }
 function isPassHiddenForUid(uid){
   const started = !!state.game?.started;
@@ -3634,6 +3655,7 @@ function isRolePlayableNow() {
     if (phase !== 'collect') {
         return isPower10ChangeAllowed();
     }
+    if (isFirstRoundWithoutCrystalOwner()) return false;
     if (isCoinOwnerChangeRequired()) return false;
     if (isPower5SelectionIncomplete()) return false; // ここで変更された関数を使用
     if (isEveryoneDecided()) return false;
@@ -3705,6 +3727,7 @@ function updateGameUI(){
   applyPlayableAnimToMyHand();
   updatePower10UI();
   updateCrystalGuidePop();
+  updateCrystalSelectingTopPop();
 
   if (started){
     requestAnimationFrame(() => {
@@ -3732,6 +3755,20 @@ function updateCrystalGuidePop(){
   crystalGuidePop.classList.toggle('hidden', !shouldShow);
 }
 
+function updateCrystalSelectingTopPop(){
+  if (!crystalSelectingTopPop) return;
+  const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
+  const selecting = !!ownerId && canCurrentUserDragOwnedCrystal(ownerId);
+  const shouldShow = selecting && ownerId !== state.userId;
+  if (!shouldShow){
+    crystalSelectingTopPop.classList.add('hidden');
+    return;
+  }
+  const ownerName = (state.players || []).find(p => p.id === ownerId)?.name || '誰か';
+  crystalSelectingTopPop.textContent = `${ownerName}が水晶を使うプレイヤーを選択中`;
+  crystalSelectingTopPop.classList.remove('hidden');
+}
+
 async function maybeClearCoinOwnerChangeLock(newOwnerId){
   const lastOwner = state.game?.lastCoinOwnerId || null;
   if (!lastOwner) return;
@@ -3755,6 +3792,7 @@ function renderHands(){
   renderPower11Arrow();
   renderPower5Link();
   updateCrystalGuidePop();
+  updateCrystalSelectingTopPop();
 }
 
 function renderRoundPlayTable(){
@@ -5234,6 +5272,7 @@ let drag = null;
 
 function startDragCard(e, payload){
   if (!state.game.started) return;
+  if (isFirstRoundWithoutCrystalOwner()) return;
   if (isCoinOwnerChangeRequired()) return;
 
   const phase = state.game.phase || 'collect';
@@ -5316,7 +5355,7 @@ let isSettingMyPlay = false;
 async function setMyPlay({ kind, cardName=null }){
   if (!state.roomCode) return;
   if (!state.game.started) return;
-
+  if (isFirstRoundWithoutCrystalOwner()) return;
 
   const phase = state.game.phase || 'collect';
   const power10Allowed = isPower10ChangeAllowed();
