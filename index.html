@@ -446,31 +446,26 @@
     transition: left 0.45s ease, top 0.45s ease;
     will-change: left, top;
   }
-  /* ★更新：全員提出後シャッフル（束の外に1枚だけ2回スライド） */
+  /* ★更新：全員提出後シャッフルは効果3/4と同じ（傾けて固定＋上2枚のみ横スライド） */
   .played-back.shuffling{
     --collect-base-rot:5deg;
-    --collect-offset-x:0px;
-    --collect-offset-y:0px;
+    --collect-offset-x:4px;
+    --collect-offset-y:4px;
     --collect-slide-x:66px;
-    --collect-gather-ms:450ms;
-    --collect-pause-ms:30ms;
-    --collect-dur-out:220ms;
-    --collect-dur-in:220ms;
     transform:translate(
       calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-x))),
       calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-y)))
     ) rotate(var(--collect-base-rot));
   }
   .played-back.shuffling.slide-card{
-    animation: collectCenterShuffle 460ms ease-in-out 2 both;
-    animation-delay: calc(var(--collect-gather-ms) + var(--collect-pause-ms));
+    animation: collectPower34Slide 460ms ease-in-out 3 both;
   }
   .played-x.shuffling{
     /* シャッフル中はその場でフェードアウトして消えるだけ */
     opacity:0;
     transform:translate(-50%,-50%);
   }
-  @keyframes collectCenterShuffle{
+  @keyframes collectPower34Slide{
     0%{
       transform:translate(
         calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-x))),
@@ -4970,6 +4965,13 @@ function renderPlayedMarkers(){
   const isReveal2 = started && phase === 'reveal2';
   const isTable = started && phase === 'table';
 
+  const shuffleStartedAt = Number(state.game?.shuffleStartedAt || 0);
+  const collectShuffleElapsed = isShuffle
+    ? Math.max(0, Date.now() - shuffleStartedAt)
+    : 0;
+  const collectShuffleSlideReady = isShuffle
+    && collectShuffleElapsed >= (COLLECT_SHUFFLE_GATHER_MS + COLLECT_SHUFFLE_PAUSE_MS);
+
   for (const [uid, el] of ui.playedBackByUserId){
     if (!plays[uid] || isTable) {
       el.remove();
@@ -5059,16 +5061,12 @@ function renderPlayedMarkers(){
       marker.style.top  = `${shufflePoint.y}px`;
 
       const stackPos = roleIdsForShuffle.indexOf(uid);
-      const depth = 0;
+      const depth = stackPos >= 0 ? Math.max(roleIdsForShuffle.length - 1 - stackPos, 0) : 0;
       marker.style.setProperty('--stack-depth', String(depth));
-      marker.style.setProperty('--collect-gather-ms', String(COLLECT_SHUFFLE_GATHER_MS) + 'ms');
-      marker.style.setProperty('--collect-pause-ms', String(COLLECT_SHUFFLE_PAUSE_MS) + 'ms');
-      marker.classList.toggle('slide-card', stackPos >= 0 && stackPos === roleIdsForShuffle.length - 1);
+      marker.classList.toggle('slide-card', collectShuffleSlideReady && stackPos >= 0 && stackPos >= roleIdsForShuffle.length - 2);
     } else {
       marker.classList.remove('shuffling', 'slide-card');
       marker.style.removeProperty('--stack-depth');
-      marker.style.removeProperty('--collect-gather-ms');
-      marker.style.removeProperty('--collect-pause-ms');
       marker.style.left = `${point.x}px`;
       marker.style.top  = `${point.y}px`;
     }
@@ -5080,9 +5078,11 @@ function renderPlayedMarkers(){
       marker.style.transform = `translate(-50%,-50%) scale(0.7)`;
     } else {
       const seatAngleDeg = getSeatAngleDeg(uid);
-      marker.style.transform = isShuffle
-        ? ''
-        : `translate(-50%,-50%) rotate(${seatAngleDeg}deg)`;
+      if (isShuffle){
+        marker.style.removeProperty('transform');
+      } else {
+        marker.style.transform = `translate(-50%,-50%) rotate(${seatAngleDeg}deg)`;
+      }
     }
   }
 }
@@ -5284,7 +5284,7 @@ function maybeHostAdvanceRound(){
   if (phase === 'shuffle'){
     const t = Number(state.game.shuffleStartedAt || 0);
     const now = Date.now();
-    const remain = (t ? (1450 - (now - t)) : 0);
+    const remain = (t ? (1500 - (now - t)) : 0);
 
     if (remain <= 0){
       hostStepShuffleToTable();
