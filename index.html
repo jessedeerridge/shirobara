@@ -1,5 +1,5 @@
 
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
@@ -582,6 +582,10 @@
   /* ★追加：ドラッグ中はアニメ停止 */
   .role-card.playable.dragging{
     animation: none !important;
+  }
+  .role-card.dragging-source{
+    opacity:0 !important;
+    pointer-events:none;
   }
 
   /* “出さない”カード（同サイズ・点線グレー枠） */
@@ -2372,7 +2376,7 @@ function subscribeGame(){
     // ★追加：効果5リンク更新
     renderPower5Link();
     maybeResetPower5Link();
-    updateHandmarks(); 
+    updateHandmarks();
     updateMiniHandSquares();
   });
 }
@@ -2714,11 +2718,11 @@ function isPower5SelectionIncomplete() {
     if (!started || phase !== 'collect') return false;
     const pd = state.game?.powerDisplay || null;
     if (!pd || Number(pd.number) !== 5) return false;
-    
+
     // ★変更箇所：他プレイヤーの中で手札が1枚以上あるプレイヤーが2人以上いない場合はfalseを返す
     // これにより、選択が完了していなくても提出をブロックしない
     if (countOtherPlayersWithHands() < 2) return false;
-    
+
     const p5 = getPower5State();
     if (!p5 || p5.ownerId !== pd.ownerId) return true;
     const targets = Array.isArray(p5.targets) ? p5.targets : [];
@@ -2751,10 +2755,10 @@ function isMyPower5Selectable() {
     if (!started || phase !== 'collect') return false;
     if (!isMyPowerDisplay(5)) return false;
     if (isPower5SelectionLocked()) return false;
-    
+
     // ★変更箇所：他プレイヤーの中で手札が1枚以上あるプレイヤーが2人以上いない場合は選択不可
     if (countOtherPlayersWithHands() < 2) return false;
-    
+
     return true;
 }
 
@@ -5347,6 +5351,7 @@ function startDragCard(e, payload){
   target.setPointerCapture?.(e.pointerId);
 
   target.classList.add('dragging');
+  target.classList.add('dragging-source');
 
   const ghost = target.cloneNode(true);
   ghost.classList.add('drag-ghost');
@@ -5372,12 +5377,14 @@ function startDragCard(e, payload){
     const dropped = isOverDiscardTable(ev.clientX, ev.clientY);
 
     drag.srcEl?.classList.remove('dragging');
+    drag.srcEl?.classList.remove('dragging-source');
 
     drag.ghost.remove();
     drag = null;
 
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
 
     if (!dropped) return;
     await setMyPlay({ kind:'role', cardName: payload.cardName });
@@ -5385,6 +5392,7 @@ function startDragCard(e, payload){
 
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
 }
 
 function moveGhost(x, y){
