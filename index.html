@@ -5886,7 +5886,9 @@ async function setMyPlay({ kind, cardName=null }){
   if (power10Allowed && kind !== 'role') return;
 
   const uid = state.userId;
-  const old = state.plays?.[uid] || null;
+  const playRef = ref(db, `rooms/${state.roomCode}/plays/${uid}`);
+  const oldSnap = await get(playRef);
+  const old = oldSnap.val() || null;
 
 
   const roleRef = ref(db, `rooms/${state.roomCode}/hands/${uid}/roleCards`);
@@ -5910,7 +5912,7 @@ async function setMyPlay({ kind, cardName=null }){
     if (!tx.committed) return;
 
     const seatIndex = state.seatedTable || 0;
-    await set(ref(db, `rooms/${state.roomCode}/plays/${uid}`), {
+    await set(playRef, {
       kind: newIsRole ? 'role' : 'pass',
       card: newIsRole ? cardName : null,
       seatIndex,
