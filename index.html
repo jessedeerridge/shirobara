@@ -115,6 +115,23 @@
   }
   .coin-warning-pop.hidden{display:none;}
 
+  .crystal-select-pop{
+    position:absolute;
+    left:50%;
+    top:62px;
+    transform:translateX(-50%);
+    background:rgba(20,20,20,.92);
+    color:#fff;
+    padding:7px 10px;
+    border-radius:10px;
+    font-size:11px;
+    font-weight:800;
+    white-space:nowrap;
+    pointer-events:none;
+    box-shadow:0 10px 18px rgba(0,0,0,.28);
+    z-index:40;
+  }
+
   /* ★ プレイヤー円配置用 */
   .player-circle{
     position:relative;
@@ -2539,6 +2556,11 @@ function isCoinOwnerChangeRequired(){
   const currentOwner = state.coins?.[COIN_ID]?.ownerId ?? null;
   return currentOwner === lastOwner;
 }
+function canCurrentUserDragOwnedCrystal(ownerId){
+  if (!ownerId) return false;
+  if (!isCoinOwnerChangeRequired()) return false;
+  return ownerId === state.userId;
+}
 function isPassHiddenForUid(uid){
   const started = !!state.game?.started;
   const phase = state.game?.phase || 'collect';
@@ -4240,6 +4262,7 @@ function renderPlayerCircle(players){
   if (!players.length) return;
 
   const n = players.length;
+  const requiredOwnerId = isCoinOwnerChangeRequired() ? (state.game?.lastCoinOwnerId || null) : null;
   const radiusPct = 44;
   const step = (2 * Math.PI) / n;
   const anchorAngle = Math.PI / 2;
@@ -4267,6 +4290,13 @@ function renderPlayerCircle(players){
 
     const ownedCoins = document.createElement('div');
     ownedCoins.className = 'owned-coins';
+
+    if (requiredOwnerId && p.id === requiredOwnerId){
+      const pop = document.createElement('div');
+      pop.className = 'crystal-select-pop';
+      pop.textContent = '水晶を使用するプレイヤーを選んでください。';
+      node.appendChild(pop);
+    }
 
     node.addEventListener('click', () => {
       // ★選択中（効果11/1/12）は座席奪取クリックを無効化
@@ -5531,7 +5561,8 @@ function renderOwnedCoinsBadges(){
     dot.dataset.ownerId = c.ownerId;
 
     const locked = !!(c.lockBy && c.lockBy !== state.userId);
-    dot.classList.toggle('locked', locked);
+    const dragLocked = !canCurrentUserDragOwnedCrystal(c.ownerId);
+    dot.classList.toggle('locked', locked || dragLocked);
 
     dot.addEventListener('pointerdown', (e) => startDragCoinFromOwned(e, coinId, c.ownerId));
 
@@ -5674,6 +5705,7 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
 
   const c = state.coins?.[coinId];
   if (!c) return;
+  if (!canCurrentUserDragOwnedCrystal(c.ownerId)) return;
   if (c.lockBy && c.lockBy !== state.userId) return;
 
   e.preventDefault();
@@ -5755,11 +5787,12 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
     }
 
     await update(ref(db, `rooms/${state.roomCode}/coins/${coinId}`), {
-      ownerId: null,
+      ownerId: prev?.ownerId ?? currentOwnerId ?? null,
+      xPct: prev?.xPct ?? 0.5,
+      yPct: prev?.yPct ?? 0.5,
       lockBy: null,
       updatedAt: Date.now()
     });
-    await maybeClearCoinOwnerChangeLock(null);
   };
 
 
