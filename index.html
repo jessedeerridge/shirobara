@@ -3757,13 +3757,16 @@ function updateCrystalGuidePop(){
 
 function updateCrystalSelectingTopPop(){
   if (!crystalSelectingTopPop) return;
+
   const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
-  const selecting = !!ownerId && canCurrentUserDragOwnedCrystal(ownerId);
+  const selecting = !!ownerId && isCoinOwnerChangeRequired();
   const shouldShow = selecting && ownerId !== state.userId;
+
   if (!shouldShow){
     crystalSelectingTopPop.classList.add('hidden');
     return;
   }
+
   const ownerName = (state.players || []).find(p => p.id === ownerId)?.name || '誰か';
   crystalSelectingTopPop.textContent = `${ownerName}が水晶を使うプレイヤーを選択中`;
   crystalSelectingTopPop.classList.remove('hidden');
