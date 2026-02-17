@@ -106,7 +106,7 @@
 
   /* ★チップ移動不可ポップ（下固定） */
   .coin-warning-pop{
-    position:fixed;left:50%;bottom:10px;transform:translateX(-50%);
+    position:fixed;left:50%;bottom:20px;transform:translateX(-50%);
     background:rgba(20,20,20,.92);color:#fff;
     padding:12px 16px;border-radius:14px;
     box-shadow:0 18px 40px rgba(0,0,0,.35);
@@ -126,6 +126,10 @@
     pointer-events:none;
   }
   .crystal-guide-pop.hidden{display:none;}
+
+  /* ★「水晶を使用するプレイヤーを選んでください」ポップは
+     「もう水晶チップがありません。」と同じ高さ（画面下部）に表示 */
+  #crystalGuidePop{bottom:20px;}
 
   .crystal-selecting-top-pop{
     position:fixed;left:50%;top:68px;transform:translateX(-50%);
