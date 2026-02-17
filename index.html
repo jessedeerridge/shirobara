@@ -276,6 +276,21 @@
   }
   .player-tag .mini-hand-hit.active{ pointer-events:auto; }
 
+  /* 他プレイヤー手札の扇カードを囲む黒点線サークル */
+  .player-tag .handcircle{
+    position:absolute;
+    left:50%;
+    top:100%;
+    transform:translate(-50%,0);
+    width:78px;
+    height:58px;
+    border:2px dotted #000;
+    border-radius:50%;
+    background:transparent;
+    pointer-events:none;
+    z-index:119;
+  }
+
   /* ===== 中央エリア（discardtable / shuffle / table並べ） ===== */
  .center-area{
     position:absolute;
@@ -4632,7 +4647,11 @@ function renderPlayerCircle(players){
        c.style.zIndex = String(10 + i);
         miniHand.appendChild(c);
       }
+      const handcircle = document.createElement('div');
+      handcircle.className = 'handcircle';
+
       tag.appendChild(square);
+      tag.appendChild(handcircle);
       tag.appendChild(miniHand);
 
       // ★追加：クリック当たり判定（選択中だけ有効）
