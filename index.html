@@ -1670,6 +1670,7 @@
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
 <div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
 <div id="crystalGuidePop" class="crystal-guide-pop hidden">水晶を使用するプレイヤーを選んでください。</div>
+<div id="power112GuidePop" class="crystal-guide-pop hidden">カードを出させるプレイヤーを選択してください。</div>
 <div id="spiritGuidePop" class="crystal-guide-pop hidden">霊魂を与えるプレイヤーを選んで、カードをドラッグしてください。</div>
 <div id="crystalSelectingTopPop" class="crystal-selecting-top-pop hidden">誰かが水晶を使うプレイヤーを選択中</div>
 
@@ -1797,6 +1798,7 @@ const copyLinkBtn = document.getElementById('copyLinkBtn');
 const hostSelectingPop = document.getElementById('hostSelectingPop');
 const coinWarningPop = document.getElementById('coinWarningPop');
 const crystalGuidePop = document.getElementById('crystalGuidePop');
+const power112GuidePop = document.getElementById('power112GuidePop');
 const spiritGuidePop = document.getElementById('spiritGuidePop');
 const crystalSelectingTopPop = document.getElementById('crystalSelectingTopPop');
 
@@ -2847,6 +2849,9 @@ function isMyPower112Selectable(){
   const round = Number(state.game?.round || 0);
  if (p112 && p112.used && Number(p112.round || 0) === round && p112.ownerId === state.userId) return false;
   return true;
+}
+function isMyPlayLockedByPower112Selection(){
+  return isMyPower112Selectable();
 }
 
 // 他のプレイヤーの中で手札が1枚以上あるプレイヤーを数える関数
@@ -3903,6 +3908,7 @@ function isRolePlayableNow() {
     if (isFirstRoundWithoutCrystalOwner()) return false;
     if (isCoinOwnerChangeRequired()) return false;
     if (isMyPower11Selectable()) return false;
+    if (isMyPlayLockedByPower112Selection()) return false;
     if (isPower5SelectionIncomplete()) return false; // ここで変更された関数を使用
     if (isEveryoneDecided()) return false;
     if (!isMyCollectTurn()) return false;
@@ -3926,6 +3932,12 @@ function updateSpiritGuidePop(){
   if (!spiritGuidePop) return;
   const shouldShow = isPower7GivePendingForMe();
   spiritGuidePop.classList.toggle('hidden', !shouldShow);
+}
+
+function updatePower112GuidePop(){
+  if (!power112GuidePop) return;
+  const shouldShow = isMyPlayLockedByPower112Selection();
+  power112GuidePop.classList.toggle('hidden', !shouldShow);
 }
 
 function updateSpiritDropTargets(){
@@ -3997,6 +4009,7 @@ function updateGameUI(){
   applyPlayableAnimToMyHand();
   updatePower10UI();
   updateCrystalGuidePop();
+  updatePower112GuidePop();
   updateSpiritGuidePop();
   updateCrystalSelectingTopPop();
 
@@ -4077,6 +4090,7 @@ function renderHands(){
   renderPower11Arrow();
   renderPower5Link();
   updateCrystalGuidePop();
+  updatePower112GuidePop();
   updateCrystalSelectingTopPop();
 }
 
@@ -5654,6 +5668,7 @@ function startDragCard(e, payload){
   if (!power10Allowed && isEveryoneDecided()) return;
   if (!power10Allowed && !isMyCollectTurn()) return;
   if (!power10Allowed && isPower7GivePendingForMe()) return;
+  if (!power10Allowed && isMyPlayLockedByPower112Selection()) return;
   if (payload.kind !== 'role') return;
 
   // ★効果3/4で選べない人はドラッグ不可
@@ -5740,6 +5755,7 @@ async function setMyPlay({ kind, cardName=null }){
   if (!power10Allowed && isEveryoneDecided()) return;
   if (!power10Allowed && !isMyCollectTurn()) return;
   if (!power10Allowed && isPower7GivePendingForMe()) return;
+  if (!power10Allowed && isMyPlayLockedByPower112Selection()) return;
 
   // ★効果3/4で選べない人は「出さない」も不可
   if (!power10Allowed && isMyPlayLockedByPower34()) return;
