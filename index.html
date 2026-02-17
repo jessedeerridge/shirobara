@@ -3082,6 +3082,7 @@ function getEffectSelectedHandcircleTargets(){
     p112 &&
     p112.used &&
     Number(p112.round || 0) === round &&
+    p112.ownerId === state.userId &&
     p112.targetId
   ){
     targets.add(p112.targetId);
@@ -3091,6 +3092,7 @@ function getEffectSelectedHandcircleTargets(){
   if (
     p10 &&
     Number(p10.round || 0) === round &&
+    p10.ownerId === state.userId &&
     p10.targetId &&
     (p10.status === 'awaiting-change' || p10.status === 'done')
   ){
