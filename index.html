@@ -221,16 +221,9 @@
     width:22px;
     height:28px;
 
-    border-radius:3px;
-
-    /* ★変更：cys.jpg */
-    background-image:url('cys.jpg');
-    background-size:cover;
-    background-position:center;
-    background-repeat:no-repeat;
-
-    /* 画像が暗くならないよう、元の黒塗りは消す */
-    background-color:transparent;
+    border-radius:4px;
+    border:2px dashed #111;
+    background:transparent;
 
     box-shadow:0 2px 6px rgba(0,0,0,.25);
     pointer-events:none;
@@ -1649,6 +1642,7 @@
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
 <div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
 <div id="crystalGuidePop" class="crystal-guide-pop hidden">水晶を使用するプレイヤーを選んでください。</div>
+<div id="spiritGuidePop" class="crystal-guide-pop hidden">霊魂を与えるプレイヤーを選んで、カードをドラッグしてください。</div>
 <div id="crystalSelectingTopPop" class="crystal-selecting-top-pop hidden">誰かが水晶を使うプレイヤーを選択中</div>
 
 <div id="seatPop" class="seat-pop hidden">
@@ -1775,6 +1769,7 @@ const copyLinkBtn = document.getElementById('copyLinkBtn');
 const hostSelectingPop = document.getElementById('hostSelectingPop');
 const coinWarningPop = document.getElementById('coinWarningPop');
 const crystalGuidePop = document.getElementById('crystalGuidePop');
+const spiritGuidePop = document.getElementById('spiritGuidePop');
 const crystalSelectingTopPop = document.getElementById('crystalSelectingTopPop');
 
 const seatPop = document.getElementById('seatPop');
@@ -2743,6 +2738,16 @@ function canCurrentUserDragOwnedCrystal(ownerId){
   if (!ownerId) return false;
   if (!isCoinOwnerChangeRequired()) return false;
   return ownerId === state.userId;
+}
+function isMyPower7SpiritPending(){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  const pd = state.game?.powerDisplay || null;
+  const p7 = state.game?.power7 || null;
+  if (!started || phase !== 'collect') return false;
+  if (!pd || Number(pd.number) !== 7) return false;
+  if (pd.ownerId !== state.userId) return false;
+  return !(p7 && p7.used);
 }
 function isFirstRoundWithoutCrystalOwner(){
   const started = !!state.game?.started;
@@ -3877,6 +3882,7 @@ function isRolePlayableNow() {
     }
     if (isFirstRoundWithoutCrystalOwner()) return false;
     if (isCoinOwnerChangeRequired()) return false;
+    if (isMyPower7SpiritPending()) return false;
     if (isMyPower11Selectable()) return false;
     if (isPower5SelectionIncomplete()) return false; // ここで変更された関数を使用
     if (isEveryoneDecided()) return false;
@@ -3950,6 +3956,7 @@ function updateGameUI(){
   applyPlayableAnimToMyHand();
   updatePower10UI();
   updateCrystalGuidePop();
+  updateSpiritGuidePop();
   updateCrystalSelectingTopPop();
 
   if (started){
@@ -3987,6 +3994,10 @@ function updateCrystalGuidePop(){
   const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
   const shouldShow = canCurrentUserDragOwnedCrystal(ownerId);
   crystalGuidePop.classList.toggle('hidden', !shouldShow);
+}
+function updateSpiritGuidePop(){
+  if (!spiritGuidePop) return;
+  spiritGuidePop.classList.toggle('hidden', !isMyPower7SpiritPending());
 }
 
 function updateCrystalSelectingTopPop(){
@@ -5600,6 +5611,7 @@ function startDragCard(e, payload){
   if (!state.game.started) return;
   if (isFirstRoundWithoutCrystalOwner()) return;
   if (isCoinOwnerChangeRequired()) return;
+  if (isMyPower7SpiritPending()) return;
 
   const phase = state.game.phase || 'collect';
   const power10Allowed = isPower10ChangeAllowed();
@@ -5685,6 +5697,7 @@ async function setMyPlay({ kind, cardName=null }){
   if (!state.roomCode) return;
   if (!state.game.started) return;
   if (isFirstRoundWithoutCrystalOwner()) return;
+  if (isMyPower7SpiritPending()) return;
 
   const phase = state.game.phase || 'collect';
   const power10Allowed = isPower10ChangeAllowed();
@@ -5826,6 +5839,16 @@ function getOwncoinHitUserId(clientX, clientY){
     const dy = clientY - cy;
     const rad = r.width/2;
     if ((dx*dx + dy*dy) <= (rad*rad)) return uid;
+  }
+  return null;
+}
+function getHandcircleHitUserId(clientX, clientY){
+  for (const [uid, square] of ui.miniHandSquareByUserId){
+    if (!square || square.classList.contains('hidden')) continue;
+    const rect = square.getBoundingClientRect();
+    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom){
+      return uid;
+    }
   }
   return null;
 }
@@ -6243,7 +6266,7 @@ function startDragSpirit(e){
     spiritDrag = null;
     spiritCard.style.opacity = '';
 
-    const hitUid = getOwncoinHitUserId(ev.clientX, ev.clientY);
+    const hitUid = getHandcircleHitUserId(ev.clientX, ev.clientY);
     if (!hitUid) return;
 
     const targetName = (state.players || []).find(p => p.id === hitUid)?.name || '誰か';
