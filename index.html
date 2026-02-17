@@ -3402,7 +3402,7 @@ function clearPower34ShuffleOverlay(){
 function startPower34ShuffleAnim(){
   if (!power34ShuffleOverlay || power34ShuffleActive) return;
   const cards = Array.from(myHandEl.querySelectorAll('.role-card'));
-  if (!cards.length) return;
+  if (cards.length <= 1) return;
 
   const handRect = myHandEl.getBoundingClientRect();
   const sampleRect = cards[0].getBoundingClientRect();
@@ -3490,12 +3490,11 @@ function startPower34ShuffleAnim(){
     animateSwap(front, back, 3);
   };
 
-  const animateCut = (dir, onDone) => {
+  const animateCutRight = (onDone) => {
     overlays.forEach((overlay, idx) => {
       const g = gatherState[idx];
-      const side = (idx % 2 === 0) ? -1 : 1;
-      const shift = side * dir;
-      const cutRot = g.rot + shift * 1.5;
+      const shift = 1;
+      const cutRot = g.rot + 1.5;
       overlay.style.transition = `transform ${cutDur}ms ease-in-out`;
       overlay.style.transform = `translate(${g.dx + shift * cutX}px, ${g.dy}px) rotate(${cutRot}deg)`;
     });
@@ -3514,8 +3513,8 @@ function startPower34ShuffleAnim(){
   };
 
   power34ShuffleMotionTimer = setTimeout(() => {
-    animateCut(1, () => {
-      animateCut(-1, () => {
+    animateCutRight(() => {
+      animateCutRight(() => {
         startSwapPhase();
       });
     });
@@ -3574,11 +3573,20 @@ async function executePower34Now(ctx){
   }
 
   const handRef = ref(db, `${base}/hands/${ctx.forcedUid}/roleCards`);
+  const forcedSeat = (state.players || []).find(p => p.id === ctx.forcedUid)?.seatIndex || 0;
   const handSnap = await get(handRef);
   const roleCards0 = handSnap.val();
   let roleCards = Array.isArray(roleCards0) ? [...roleCards0] : [];
   if (!roleCards.length){
-    await update(p34Ref, { done:true, doneAt: Date.now(), result:'nohand' });
+    await set(ref(db, `${base}/plays/${ctx.forcedUid}`), {
+      kind: 'pass',
+      card: null,
+      seatIndex: forcedSeat,
+      playedAt: Date.now(),
+      forcedBy: 'power34',
+      forcedFrom: ctx.num
+    });
+    await update(p34Ref, { done:true, doneAt: Date.now(), result:'auto_pass_nohand' });
     return;
   }
 
@@ -3598,8 +3606,10 @@ async function executePower34Now(ctx){
     return c;
   });
 
-  // 演出が見える最小待機
-  await new Promise(resolve => setTimeout(resolve, 760));
+  // 演出が見える最小待機（手札1枚なら演出なしで即提出）
+  if (roleCards.length > 1){
+    await new Promise(resolve => setTimeout(resolve, 760));
+  }
 
   // ★削除はトランザクション（2回だけ安全リトライ）
   let removed = false;
@@ -3642,8 +3652,6 @@ async function executePower34Now(ctx){
   }
 
   // plays にセット（失敗したら手札へ戻す＝消滅防止）
-  const forcedSeat = (state.players || []).find(p => p.id === ctx.forcedUid)?.seatIndex || 0;
-
   try{
    await set(ref(db, `${base}/plays/${ctx.forcedUid}`), {
       kind: 'role',
