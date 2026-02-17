@@ -448,10 +448,10 @@
   }
   /* ★更新：全員提出後シャッフル（束の外に1枚だけ2回スライド） */
   .played-back.shuffling{
-    --collect-base-rot:5deg;
+    --collect-base-rot:4deg;
     --collect-offset-x:0px;
     --collect-offset-y:0px;
-    --collect-slide-x:66px;
+    --collect-slide-x:24px;
     --collect-gather-ms:450ms;
     --collect-pause-ms:30ms;
     --collect-dur-out:220ms;
@@ -481,7 +481,7 @@
       transform:translate(
         calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-x)) + var(--collect-slide-x)),
         calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-y)))
-      ) rotate(calc(var(--collect-base-rot) + 5deg));
+      ) rotate(var(--collect-base-rot));
     }
     95.6%{
       transform:translate(
@@ -5079,10 +5079,9 @@ function renderPlayedMarkers(){
       marker.style.backgroundImage = `url('${ASSET.roleFront[p.card] || ''}')`;
       marker.style.transform = `translate(-50%,-50%) scale(0.7)`;
     } else {
-      const seatAngleDeg = getSeatAngleDeg(uid);
       marker.style.transform = isShuffle
         ? ''
-        : `translate(-50%,-50%) rotate(${seatAngleDeg}deg)`;
+        : 'translate(-50%,-50%) rotate(4deg)';
     }
   }
 }
