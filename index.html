@@ -3719,16 +3719,19 @@ let coinWarningTimer = null;
 function showCoinWarningPop(){
   if (!coinWarningPop) return;
   coinWarningPop.classList.remove('hidden');
+  if (crystalGuidePop) crystalGuidePop.classList.add('hidden');
   if (coinWarningTimer) clearTimeout(coinWarningTimer);
   coinWarningTimer = setTimeout(() => {
     coinWarningPop.classList.add('hidden');
+    updateCrystalGuidePop();
   }, 1600);
 }
 
 function updateCrystalGuidePop(){
   if (!crystalGuidePop) return;
   const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
-  const shouldShow = canCurrentUserDragOwnedCrystal(ownerId);
+  const warningVisible = coinWarningPop && !coinWarningPop.classList.contains('hidden');
+  const shouldShow = canCurrentUserDragOwnedCrystal(ownerId) && !warningVisible;
   crystalGuidePop.classList.toggle('hidden', !shouldShow);
 }
 
@@ -5562,6 +5565,18 @@ function renderOwnedCoinsBadges(){
     const dragLocked = !canCurrentUserDragOwnedCrystal(c.ownerId);
     dot.classList.toggle('locked', locked);
     dot.classList.toggle('no-drag', !locked && dragLocked);
+
+    const isDraggingOwnedByMe = !!(
+      c.lockBy === state.userId &&
+      coinDrag &&
+      coinDrag.source === 'owned' &&
+      coinDrag.sourceOwnerId === c.ownerId &&
+      coinDrag.pointerId != null
+    );
+    if (isDraggingOwnedByMe){
+      dot.style.opacity = '0';
+      dot.style.pointerEvents = 'none';
+    }
 
     dot.addEventListener('pointerdown', (e) => startDragCoinFromOwned(e, coinId, c.ownerId));
 
