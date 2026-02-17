@@ -238,6 +238,9 @@
     /* ★center-area(5)より前 */
     z-index: 120;
   }
+  .player-tag.right-half .mini-hand-square{
+    left:calc(50% + 53px);
+  }
   .player-tag .mini-hand-square.hidden{display:none;}
   .player-tag .mini-card{
     position:absolute;left:50%;top:0;width:30px;height:48px;
@@ -4380,6 +4383,7 @@ function renderPlayerCircle(players){
 
     const tag = document.createElement('div');
     tag.className = 'player-tag' + (p.id === state.userId ? ' me' : '');
+    if (x > 50) tag.classList.add('right-half');
     tag.textContent = p.name;
 
     const ownedCoins = document.createElement('div');
