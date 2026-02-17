@@ -1,5 +1,5 @@
 
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
@@ -381,6 +381,54 @@
     background-position:center;    box-shadow:0 12px 24px rgba(0,0,0,.22);
     transform:translate(-50%,-50%);
     opacity:.98;
+  }
+
+
+
+  /* ★追加：公開直前の中央シャッフル演出（公開カードサイズ） */
+  .collect-shuffle-overlay{
+    position:fixed;
+    inset:0;
+    display:none;
+    place-items:center;
+    pointer-events:none;
+    z-index:240;
+  }
+  .collect-shuffle-overlay.show{display:grid;}
+  .collect-shuffle-deck{
+    position:relative;
+    width:var(--field-w);
+    height:var(--field-h);
+  }
+  .collect-shuffle-card{
+    position:absolute;
+    inset:0;
+    width:var(--field-w);
+    height:var(--field-h);
+    border-radius:12px;
+    border:1px solid rgba(0,0,0,.28);
+    background-image:url('baraura.jpg');
+    background-size:cover;
+    background-position:center;
+    box-shadow:0 14px 28px rgba(0,0,0,.24);
+    transform-origin:center;
+    will-change:transform;
+  }
+  .collect-shuffle-card.back{
+    transform:translate(4px, 4px) rotate(5deg);
+    z-index:1;
+  }
+  .collect-shuffle-card.front{
+    transform:translate(0, 0) rotate(5deg);
+    z-index:2;
+  }
+  .collect-shuffle-card.movingOut{
+    transition:transform 220ms ease-in-out;
+    transform:translate(66px, 0) rotate(10deg);
+  }
+  .collect-shuffle-card.movingIn{
+    transition:transform 220ms ease-in-out;
+    transform:translate(4px, 4px) rotate(5deg);
   }
 
   /* ★ 公開後：中央にカードを並べる（table） */
@@ -1665,6 +1713,8 @@
 <!-- ★更新：効果3/4の手札シャッフル演出（自分だけ） -->
 <div id="power34ShuffleOverlay" class="power34-shuffle-overlay" aria-hidden="true"></div>
 
+<div id="collectShuffleOverlay" class="collect-shuffle-overlay" aria-hidden="true"></div>
+
 <!-- ★ホスト：次ラウンド -->
 <button id="btnNextRound" class="next-round-btn" title="次ラウンド">次<br>ラウンド</button>
 
@@ -1817,6 +1867,7 @@ const tableGrid = document.getElementById('tableGrid');
 
 const btnNextRound = document.getElementById('btnNextRound');
 const power34ShuffleOverlay = document.getElementById('power34ShuffleOverlay');
+const collectShuffleOverlay = document.getElementById('collectShuffleOverlay');
 
 /* ★追加：効果11の覗き見UI + 矢印UI */
 const peekOverlay = document.getElementById('peekOverlay');
@@ -2458,7 +2509,7 @@ function subscribeGame(){
     // ★追加：効果5リンク更新
     renderPower5Link();
     maybeResetPower5Link();
-    updateHandmarks(); 
+    updateHandmarks();
     updateMiniHandSquares();
   });
 }
@@ -2809,11 +2860,11 @@ function isPower5SelectionIncomplete() {
     if (!started || phase !== 'collect') return false;
     const pd = state.game?.powerDisplay || null;
     if (!pd || Number(pd.number) !== 5) return false;
-    
+
     // ★変更箇所：他プレイヤーの中で手札が1枚以上あるプレイヤーが2人以上いない場合はfalseを返す
     // これにより、選択が完了していなくても提出をブロックしない
     if (countOtherPlayersWithHands() < 2) return false;
-    
+
     const p5 = getPower5State();
     if (!p5 || p5.ownerId !== pd.ownerId) return true;
     const targets = Array.isArray(p5.targets) ? p5.targets : [];
@@ -2846,10 +2897,10 @@ function isMyPower5Selectable() {
     if (!started || phase !== 'collect') return false;
     if (!isMyPowerDisplay(5)) return false;
     if (isPower5SelectionLocked()) return false;
-    
+
     // ★変更箇所：他プレイヤーの中で手札が1枚以上あるプレイヤーが2人以上いない場合は選択不可
     if (countOtherPlayersWithHands() < 2) return false;
-    
+
     return true;
 }
 
@@ -4955,8 +5006,87 @@ function handleViewportResize(){
 window.addEventListener('resize', handleViewportResize);
 
 
-const COLLECT_SHUFFLE_GATHER_MS = 450;
-const COLLECT_SHUFFLE_PAUSE_MS = 30;
+
+let collectShuffleRunning = false;
+let collectShuffleAbortToken = 0;
+
+function clearCollectShuffleAnim(){
+  collectShuffleAbortToken += 1;
+  collectShuffleRunning = false;
+  if (!collectShuffleOverlay) return;
+  collectShuffleOverlay.classList.remove('show');
+  collectShuffleOverlay.innerHTML = '';
+}
+
+function waitCollectShuffle(ms, token){
+  return new Promise(resolve => {
+    setTimeout(() => resolve(token === collectShuffleAbortToken), ms);
+  });
+}
+
+async function startCollectShuffleAnim(){
+  if (!collectShuffleOverlay || collectShuffleRunning) return;
+
+  collectShuffleAbortToken += 1;
+  const token = collectShuffleAbortToken;
+  collectShuffleRunning = true;
+
+  collectShuffleOverlay.innerHTML = `
+    <div class="collect-shuffle-deck" aria-hidden="true">
+      <div class="collect-shuffle-card back"></div>
+      <div class="collect-shuffle-card front"></div>
+    </div>
+  `;
+  collectShuffleOverlay.classList.add('show');
+
+  let front = collectShuffleOverlay.querySelector('.collect-shuffle-card.front');
+  let back = collectShuffleOverlay.querySelector('.collect-shuffle-card.back');
+  if (!front || !back){
+    clearCollectShuffleAnim();
+    return;
+  }
+
+  const swapLayers = () => {
+    front.classList.remove('front');
+    front.classList.add('back');
+    back.classList.remove('back');
+    back.classList.add('front');
+    const tmp = front;
+    front = back;
+    back = tmp;
+  };
+
+  for (let i=0; i<3; i++){
+    if (token !== collectShuffleAbortToken) return;
+
+    front.classList.remove('movingIn');
+    void front.offsetWidth;
+    front.classList.add('movingOut');
+    if (!(await waitCollectShuffle(220, token))) return;
+
+    front.classList.remove('movingOut');
+    swapLayers();
+
+    back.classList.remove('movingOut');
+    void back.offsetWidth;
+    back.classList.add('movingIn');
+    if (!(await waitCollectShuffle(220, token))) return;
+
+    back.classList.remove('movingIn');
+    if (!(await waitCollectShuffle(20, token))) return;
+  }
+
+  collectShuffleRunning = false;
+}
+
+function syncCollectShuffleAnim(isShuffle, roleCount){
+  if (isShuffle && roleCount >= 2){
+    startCollectShuffleAnim();
+  } else {
+    clearCollectShuffleAnim();
+  }
+}
+
 function renderPlayedMarkers(){
   const plays = state.plays || {};
   const started = !!state.game?.started;
@@ -4965,12 +5095,10 @@ function renderPlayedMarkers(){
   const isReveal2 = started && phase === 'reveal2';
   const isTable = started && phase === 'table';
 
-  const shuffleStartedAt = Number(state.game?.shuffleStartedAt || 0);
-  const collectShuffleElapsed = isShuffle
-    ? Math.max(0, Date.now() - shuffleStartedAt)
+  const shuffleRoleCount = isShuffle
+    ? Object.values(plays).filter(v => v?.kind !== 'pass').length
     : 0;
-  const collectShuffleSlideReady = isShuffle
-    && collectShuffleElapsed >= (COLLECT_SHUFFLE_GATHER_MS + COLLECT_SHUFFLE_PAUSE_MS);
+  syncCollectShuffleAnim(isShuffle, shuffleRoleCount);
 
   for (const [uid, el] of ui.playedBackByUserId){
     if (!plays[uid] || isTable) {
@@ -4987,10 +5115,6 @@ function renderPlayedMarkers(){
   const shuffleX = discardRect.left + discardRect.width/2;
   const shuffleY = discardRect.top + discardRect.height/2;
   const shufflePoint = clientToMainCoords(shuffleX, shuffleY);
-
-  const roleIdsForShuffle = isShuffle
-    ? Object.keys(plays).filter(id => plays[id]?.kind !== 'pass')
-    : [];
 
   for (const uid of Object.keys(plays)){
     const p = plays[uid];
@@ -5056,19 +5180,15 @@ function renderPlayedMarkers(){
     marker.style.top  = `${point.y}px`;
 
     if (isShuffle){
-      marker.classList.add('shuffling');
       marker.style.left = `${shufflePoint.x}px`;
       marker.style.top  = `${shufflePoint.y}px`;
-
-      const stackPos = roleIdsForShuffle.indexOf(uid);
-      const depth = stackPos >= 0 ? Math.max(roleIdsForShuffle.length - 1 - stackPos, 0) : 0;
-      marker.style.setProperty('--stack-depth', String(depth));
-      marker.classList.toggle('slide-card', collectShuffleSlideReady && stackPos >= 0 && stackPos >= roleIdsForShuffle.length - 2);
+      marker.style.opacity = '0';
     } else {
       marker.classList.remove('shuffling', 'slide-card');
       marker.style.removeProperty('--stack-depth');
       marker.style.left = `${point.x}px`;
       marker.style.top  = `${point.y}px`;
+      marker.style.opacity = '1';
     }
 
     if (p.kind === 'pass'){
