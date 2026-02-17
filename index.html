@@ -115,6 +115,16 @@
   }
   .coin-warning-pop.hidden{display:none;}
 
+  .crystal-guide-pop{
+    position:fixed;left:50%;bottom:10px;transform:translateX(-50%);
+    background:rgba(20,20,20,.92);color:#fff;
+    padding:12px 16px;border-radius:14px;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+    z-index:228;font-weight:800;white-space:nowrap;
+    pointer-events:none;
+  }
+  .crystal-guide-pop.hidden{display:none;}
+
   /* ★ プレイヤー円配置用 */
   .player-circle{
     position:relative;
@@ -183,6 +193,7 @@
   }
   .owned-coin-dot:active{cursor:grabbing;}
   .owned-coin-dot.locked{opacity:.6; cursor:not-allowed; pointer-events:none;}
+  .owned-coin-dot.no-drag{cursor:default;}
 
   /* 他プレイヤーのミニカード（ネームタグの下に扇状） */
   .player-tag .mini-hand{
@@ -1496,6 +1507,7 @@
 
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
 <div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
+<div id="crystalGuidePop" class="crystal-guide-pop hidden">水晶を使用するプレイヤーを選んでください。</div>
 
 <div id="seatPop" class="seat-pop hidden">
 
@@ -1618,6 +1630,7 @@ const copyLinkBtn = document.getElementById('copyLinkBtn');
 
 const hostSelectingPop = document.getElementById('hostSelectingPop');
 const coinWarningPop = document.getElementById('coinWarningPop');
+const crystalGuidePop = document.getElementById('crystalGuidePop');
 
 const seatPop = document.getElementById('seatPop');
 const seatTabs = document.getElementById('seatTabs');
@@ -2390,6 +2403,7 @@ function subscribeCoins(){
     updatePower7UI();
     applyPlayableAnimToMyHand();
     maybeResetPower5Link();
+    updateCrystalGuidePop();
   });
 }
 function subscribeDiscard(){
@@ -2538,6 +2552,11 @@ function isCoinOwnerChangeRequired(){
   if (!lastOwner) return false;
   const currentOwner = state.coins?.[COIN_ID]?.ownerId ?? null;
   return currentOwner === lastOwner;
+}
+function canCurrentUserDragOwnedCrystal(ownerId){
+  if (!ownerId) return false;
+  if (!isCoinOwnerChangeRequired()) return false;
+  return ownerId === state.userId;
 }
 function isPassHiddenForUid(uid){
   const started = !!state.game?.started;
@@ -3685,6 +3704,7 @@ function updateGameUI(){
 
   applyPlayableAnimToMyHand();
   updatePower10UI();
+  updateCrystalGuidePop();
 
   if (started){
     requestAnimationFrame(() => {
@@ -3703,6 +3723,13 @@ function showCoinWarningPop(){
   coinWarningTimer = setTimeout(() => {
     coinWarningPop.classList.add('hidden');
   }, 1600);
+}
+
+function updateCrystalGuidePop(){
+  if (!crystalGuidePop) return;
+  const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
+  const shouldShow = canCurrentUserDragOwnedCrystal(ownerId);
+  crystalGuidePop.classList.toggle('hidden', !shouldShow);
 }
 
 async function maybeClearCoinOwnerChangeLock(newOwnerId){
@@ -3727,6 +3754,7 @@ function renderHands(){
   updateSelectModeUI();
   renderPower11Arrow();
   renderPower5Link();
+  updateCrystalGuidePop();
 }
 
 function renderRoundPlayTable(){
@@ -5531,7 +5559,9 @@ function renderOwnedCoinsBadges(){
     dot.dataset.ownerId = c.ownerId;
 
     const locked = !!(c.lockBy && c.lockBy !== state.userId);
+    const dragLocked = !canCurrentUserDragOwnedCrystal(c.ownerId);
     dot.classList.toggle('locked', locked);
+    dot.classList.toggle('no-drag', !locked && dragLocked);
 
     dot.addEventListener('pointerdown', (e) => startDragCoinFromOwned(e, coinId, c.ownerId));
 
@@ -5674,6 +5704,7 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
 
   const c = state.coins?.[coinId];
   if (!c) return;
+  if (!canCurrentUserDragOwnedCrystal(c.ownerId)) return;
   if (c.lockBy && c.lockBy !== state.userId) return;
 
   e.preventDefault();
@@ -5687,7 +5718,7 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
   const ghost = srcEl.cloneNode(true);
   ghost.classList.add('drag-ghost');
   mainEl.appendChild(ghost);
-  srcEl.style.opacity = '0.25';
+  srcEl.style.opacity = '0';
 
   const prevState = {
     ownerId: c?.ownerId ?? currentOwnerId ?? null,
@@ -5755,11 +5786,12 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
     }
 
     await update(ref(db, `rooms/${state.roomCode}/coins/${coinId}`), {
-      ownerId: null,
+      ownerId: prev?.ownerId ?? currentOwnerId ?? null,
+      xPct: prev?.xPct ?? 0.5,
+      yPct: prev?.yPct ?? 0.5,
       lockBy: null,
       updatedAt: Date.now()
     });
-    await maybeClearCoinOwnerChangeLock(null);
   };
 
 
