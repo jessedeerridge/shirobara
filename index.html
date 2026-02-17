@@ -1097,7 +1097,7 @@
     pointer-events:none;
   }
   .peek-overlay.hidden{display:none;}
-  .peek-card{
+ .peek-card{
     width:96px;
     height:144px;
     border-radius:14px;
@@ -1112,10 +1112,11 @@
     justify-content:center;
     box-sizing:border-box;
     padding:8px;
+    overflow:visible;
   }
  .peek-label{
     position:absolute;
-    top:8px;
+    top:-14px;
     left:50%;
     transform:translateX(-50%);
     font-size:12px;
@@ -1126,6 +1127,7 @@
     border-radius:999px;
     padding:2px 8px;
     display:block;
+    white-space:nowrap;
   }
 
   /* =========================
@@ -2907,10 +2909,10 @@ function showPower10ConfirmAt(clientX, clientY){
 }
 
 /* ★効果11：覗き見表示 */
-function showPeek(cardName){
+function showPeek(cardName, targetPlayerName){
   const url = ASSET.roleFront[cardName] || '';
   peekCard.style.backgroundImage = url ? `url('${url}')` : '';
-  peekLabel.textContent = cardName || '—';
+  peekLabel.textContent = targetPlayerName || '誰か';
   peekOverlay.classList.remove('hidden');
 }
 function hidePeek(){
@@ -2951,15 +2953,13 @@ function renderPower11Arrow(){
 
   const p11 = state.game?.power11 || null;
   const round = Number(state.game?.round || 0);
-  const now = Date.now();
-
   const active =
     !!p11 &&
     !!p11.used &&
     Number(p11.round || 0) === round &&
     !!p11.ownerId &&
     !!p11.toUid &&
-    Number(p11.endsAt || 0) > now;
+    !p11.closedAt;
 
   if (!active){
     arrowLayer.classList.add('hidden');
@@ -2974,8 +2974,7 @@ function renderPower11Arrow(){
 
   const tick = () => {
     const p11now = state.game?.power11 || null;
-    const now2 = Date.now();
-    if (!p11now || !p11now.used || Number(p11now.round || 0) !== round || Number(p11now.endsAt || 0) <= now2){
+    if (!p11now || !p11now.used || Number(p11now.round || 0) !== round || !!p11now.closedAt){
       arrowLayer.classList.add('hidden');
       stopArrowLoop();
       return;
@@ -3223,6 +3222,7 @@ async function onOtherHandClicked(targetUid, event){
     if (!arr.length) return;
 
     const pick = arr[Math.floor(Math.random() * arr.length)];
+    const targetPlayerName = (state.players || []).find(p => p.id === targetUid)?.name || '誰か';
     const now = Date.now();
     const round = Number(state.game?.round || 1);
 
@@ -3240,12 +3240,13 @@ async function onOtherHandClicked(targetUid, event){
         toUid: targetUid,
         used: true,
         shownAt: now,
-        endsAt: now + 4000
+        closedAt: null,
+        closedBy: null
       };
     });
 
     // 自分だけ中央表示し、閉じるまでは手札プレイをロック
-    showPeek(pick);
+    showPeek(pick, targetPlayerName);
     startPower11PeekLock();
     renderMyHand();
 
@@ -4099,11 +4100,27 @@ async function maybeAutoPassWhenNoHand(){
   }
 }
 
-btnPower11CloseYes?.addEventListener('click', () => {
+btnPower11CloseYes?.addEventListener('click', async () => {
   if (!isPower11PeekLockActive) return;
+
+  const round = Number(state.game?.round || 0);
+  if (state.roomCode && round){
+    await runTransaction(ref(db, `rooms/${state.roomCode}/game/power11`), (cur) => {
+      const c = cur || {};
+      if (!c.used || Number(c.round || 0) !== round) return c;
+      if (c.ownerId !== state.userId) return c;
+      if (c.closedAt) return c;
+      return {
+        ...c,
+        closedAt: Date.now(),
+        closedBy: state.userId
+      };
+    });
+  }
+
   hidePeek();
   clearPower11PeekLock();
-  hidePowerPopRound = Number(state.game?.round || 0);
+  hidePowerPopRound = round;
   renderMyHand();
 });
 
