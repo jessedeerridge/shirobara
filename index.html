@@ -106,7 +106,7 @@
 
   /* ★チップ移動不可ポップ（下固定） */
   .coin-warning-pop{
-    position:fixed;left:50%;bottom:20px;transform:translateX(-50%);
+    position:fixed;left:50%;bottom:30px;transform:translateX(-50%);
     background:rgba(20,20,20,.92);color:#fff;
     padding:12px 16px;border-radius:14px;
     box-shadow:0 18px 40px rgba(0,0,0,.35);
@@ -129,7 +129,7 @@
 
   /* ★「水晶を使用するプレイヤーを選んでください」ポップは
      「もう水晶チップがありません。」と同じ高さ（画面下部）に表示 */
-  #crystalGuidePop{bottom:20px;}
+  #crystalGuidePop{bottom:30px;}
 
   .crystal-selecting-top-pop{
     position:fixed;left:50%;top:68px;transform:translateX(-50%);
@@ -306,6 +306,10 @@
     pointer-events:none;
     z-index:119;
     transition: background-color .12s ease;
+  }
+  .player-tag .handcircle.active{
+    pointer-events:auto;
+    cursor:pointer;
   }
   .player-tag .handcircle.spirit-drop-target{
     background:rgba(147,197,253,.35);
@@ -743,7 +747,7 @@
   }
   .power-pop{
     width:280px;
-    height:64px;
+    min-height:64px;
     border-radius:14px;
     background:rgba(20,20,20,.92);
     color:#fff;
@@ -751,7 +755,8 @@
     padding:8px 10px;
     box-sizing:border-box;
     display:flex;
-    align-items:center;
+    flex-direction:column;
+    align-items:stretch;
     justify-content:center;
     text-align:left;
     line-height:1.25;
@@ -765,13 +770,19 @@
     word-break:break-word;
     font-size:14px;
   }
+  .power-pop-extra-actions{
+    margin-top:4px;
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+  }
+  .power-pop-extra-actions.hidden{display:none;}
 
   /* ★効果10：選択/確認/変更ポップ */
-  .power10-owner-pop,
   .power10-target-pop{
     position:fixed;
     left:50%;
-    bottom:10px;
+    bottom:30px;
     transform:translateX(-50%);
     background:rgba(20,20,20,.92);
     color:#fff;
@@ -785,13 +796,7 @@
     min-width:260px;
     font-weight:900;
   }
-  .power10-owner-pop.hidden,
   .power10-target-pop.hidden{display:none;}
-  .power10-owner-actions{
-    display:flex;
-    justify-content:flex-end;
-    gap:8px;
-  }
   .power10-confirm-pop{
     position:fixed;
     background:rgba(20,20,20,.92);
@@ -1637,20 +1642,17 @@
       <div class="power-wrapper" id="powerWrapper" style="display:none;">
         <div class="power-block">
           <div id="powerCard" class="power-card">?</div>
-          <div class="power-pop"><span id="powerText"></span></div>
+          <div class="power-pop">
+            <span id="powerText"></span>
+            <div id="powerPopExtraActions" class="power-pop-extra-actions hidden">
+              <button class="btn ghost power10-ghost" id="btnPower10Skip">選ばない</button>
+            </div>
+          </div>
         </div>
       </div>
    </div>
   </div>
 </main>
-
-<!-- ★効果10：選択/確認/変更ポップ -->
-<div id="power10OwnerPop" class="power10-owner-pop hidden">
-  <div>カードを変えさせるプレイヤーの手札を選んでください。</div>
-  <div class="power10-owner-actions">
-    <button class="btn ghost power10-ghost" id="btnPower10Skip">選ばない</button>
-  </div>
-</div>
 
 <div id="power10TargetPop" class="power10-target-pop hidden">
   カードを変えてください。
@@ -1857,7 +1859,7 @@ const powerWrapper = document.getElementById('powerWrapper');
 const powerCardEl = document.getElementById('powerCard');
 const powerTextEl = document.getElementById('powerText');
 
-const power10OwnerPop = document.getElementById('power10OwnerPop');
+const powerPopExtraActions = document.getElementById('powerPopExtraActions');
 const power10TargetPop = document.getElementById('power10TargetPop');
 const power10ConfirmPop = document.getElementById('power10ConfirmPop');
 const power10ConfirmName = document.getElementById('power10ConfirmName');
@@ -3080,24 +3082,28 @@ function updateSelectModeUI() {
 
         const miniHand = ui.miniHandByUserId.get(p.id);
         const hit = ui.miniHandHitByUserId.get(p.id);
+        const handcircle = ui.handcircleByUserId.get(p.id);
 
         const hasCards = (getRoleCount(p.id) > 0);
         const hasRolePlay = state.plays?.[p.id]?.kind === 'role';
-        let enable = false;
-        if (selectingPower10) {
-            enable = hasCards && hasRolePlay;
-        } else if (selectingOther) {
-            enable = hasCards;
+        const enablePower10 = selectingPower10 && hasCards && hasRolePlay;
+        let enableOther = false;
+        if (selectingOther) {
+            enableOther = hasCards;
         } else if (selectingPower5) {
             // ★変更箇所：hasCards と selectingPower5 の両方がtrueの場合のみ有効
-            enable = hasCards && selectingPower5;
+            enableOther = hasCards && selectingPower5;
         }
+        const enable = enablePower10 || enableOther;
 
         if (miniHand) {
             miniHand.classList.toggle('selectable', enable);
         }
         if (hit) {
-            hit.classList.toggle('active', enable);
+            hit.classList.toggle('active', enableOther);
+        }
+        if (handcircle) {
+            handcircle.classList.toggle('active', enablePower10);
         }
     }
 }
@@ -4080,7 +4086,9 @@ function updatePower10UI(){
   const isActive = started && phase === 'power10' && !!p10;
 
   const isOwnerSelecting = isActive && p10.status === 'selecting' && p10.ownerId === state.userId;
-  power10OwnerPop.classList.toggle('hidden', !isOwnerSelecting);
+  if (powerPopExtraActions){
+    powerPopExtraActions.classList.toggle('hidden', !isOwnerSelecting);
+  }
 
   const isTargetWaiting =
     isActive &&
@@ -4339,12 +4347,19 @@ function renderMyHand(){
 
   if (started && handData && handData.numberCard && !shouldHidePowerPop && !lostCrystal) {
     const n = Number(handData.numberCard);
+    const isPower10SelectingNow = (n === 10) && isMyPower10Selecting();
     powerWrapper.style.display = '';
     powerCardEl.textContent = String(n);
-    powerTextEl.textContent = POWER_TEXT[n] || '';
+    powerTextEl.textContent = isPower10SelectingNow
+      ? 'カードを変えるプレイヤーの手札を選んでください。'
+      : (POWER_TEXT[n] || '');
     fitTextToBox(powerTextEl, 14, 9);
+    if (powerPopExtraActions){
+      powerPopExtraActions.classList.toggle('hidden', !isPower10SelectingNow);
+    }
   } else {
     powerWrapper.style.display = 'none';
+    if (powerPopExtraActions) powerPopExtraActions.classList.add('hidden');
   }
 
   applyPlayableAnimToMyHand();
@@ -4804,6 +4819,11 @@ function renderPlayerCircle(players){
       }
       const handcircle = document.createElement('div');
       handcircle.className = 'handcircle';
+      handcircle.title = '手札を選択';
+      handcircle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onOtherHandClicked(p.id, e);
+      });
 
       tag.appendChild(square);
       tag.appendChild(handcircle);
