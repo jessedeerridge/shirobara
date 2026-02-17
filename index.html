@@ -125,6 +125,14 @@
   }
   .crystal-guide-pop.hidden{display:none;}
 
+  #spiritGuidePop{
+    bottom:56px;
+    width:min(220px, calc(100% - 36px));
+    white-space:normal;
+    text-align:center;
+    line-height:1.45;
+  }
+
   .crystal-selecting-top-pop{
     position:fixed;left:50%;top:68px;transform:translateX(-50%);
     background:rgba(20,20,20,.92);color:#fff;
@@ -6304,7 +6312,7 @@ function startDragSpirit(e){
   ghost.classList.add('drag-ghost');
   mainEl.appendChild(ghost);
 
-  spiritCard.style.opacity = '0.25';
+  spiritCard.style.visibility = 'hidden';
   spiritDrag = { pointerId, ghost };
   setSpiritDragHint(true);
 
@@ -6322,7 +6330,7 @@ function startDragSpirit(e){
 
     spiritDrag.ghost.remove();
     spiritDrag = null;
-    spiritCard.style.opacity = '';
+    spiritCard.style.visibility = '';
     setSpiritDragHint(false);
 
     const hitUid = getHandcircleHitUserId(ev.clientX, ev.clientY);
