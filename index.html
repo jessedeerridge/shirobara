@@ -1941,7 +1941,7 @@ const POWER_TEXT = {
   4: "左隣りのプレイヤーはカードがあるなら、ランダムでカードを出す。",
   5: "指名した二人は必ず同じ行動を行う。\n（後の人が先の人をまねる。）",
   6: "全員がカードを出し終わった後に、\n自分がカードを出すかどうか決められる。",
-  7: "あなたが指名した人は幽魂一枚を得る。",
+  7: "霊魂を与えるプレイヤーを選んで、\nそのプレイヤーの手札までカードをドラッグしてください。",
   8: "左右のプレイヤーは、カードがあれば\n必ず出さなければならない。",
   9: "暗刃の者以外は目を閉じ、\n白薔薇と司教の二人は身分を明かさずに手をあげる。",
   10:"全員がカードを出し終わった後に、一人選ぶ。\nその人は出したカードを違うカードと交換する。",
@@ -6414,6 +6414,7 @@ function startDragSpirit(e){
   spiritCard.setPointerCapture?.(pointerId);
 
   const ghost = spiritCard.cloneNode(true);
+  ghost.classList.remove('idle-anim');
   ghost.classList.add('drag-ghost');
   mainEl.appendChild(ghost);
 
