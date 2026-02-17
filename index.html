@@ -1664,6 +1664,7 @@
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
 <div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
 <div id="crystalGuidePop" class="crystal-guide-pop hidden">水晶を使用するプレイヤーを選んでください。</div>
+<div id="spiritGuidePop" class="crystal-guide-pop hidden">霊魂を与えるプレイヤーを選んで、カードをドラッグしてください。</div>
 <div id="crystalSelectingTopPop" class="crystal-selecting-top-pop hidden">誰かが水晶を使うプレイヤーを選択中</div>
 
 <div id="seatPop" class="seat-pop hidden">
@@ -1790,6 +1791,7 @@ const copyLinkBtn = document.getElementById('copyLinkBtn');
 const hostSelectingPop = document.getElementById('hostSelectingPop');
 const coinWarningPop = document.getElementById('coinWarningPop');
 const crystalGuidePop = document.getElementById('crystalGuidePop');
+const spiritGuidePop = document.getElementById('spiritGuidePop');
 const crystalSelectingTopPop = document.getElementById('crystalSelectingTopPop');
 
 const seatPop = document.getElementById('seatPop');
@@ -2272,12 +2274,14 @@ let lastGameOverAnimRound = 0;
 let pendingSeatIndexToSteal = null;
 let pendingSeatPlayerIdToSteal = null;
 let isRenderingSeatTabs = false;
+let spiritDrag = null;
 
 /* UIマップ */
 const ui = {
   nodeByUserId: new Map(),
   tagByUserId: new Map(),
   owncoinByUserId: new Map(),
+  handcircleByUserId: new Map(),
   playedBackByUserId: new Map(),
   miniHandByUserId: new Map(),
   miniHandHitByUserId: new Map(),
@@ -3899,8 +3903,23 @@ function isRolePlayableNow() {
     if (isMyPlayLockedByPower34()) return false;
     if (isMyPlayLockedByPower5Waiting()) return false;
     if (isMyPlayLockedByPower5Pass()) return false;
+    if (isPower7GivePendingForMe()) return false;
     if (isPower11PeekLockActive) return false;
     return true;
+}
+
+function isPower7GivePendingForMe(){
+  if (!state.game?.started) return false;
+  if ((state.game?.phase || 'collect') !== 'collect') return false;
+  const pd = state.game?.powerDisplay || null;
+  const p7 = state.game?.power7 || null;
+  return !!pd && Number(pd.number) === 7 && pd.ownerId === state.userId && !(p7 && p7.used);
+}
+
+function updateSpiritGuidePop(){
+  if (!spiritGuidePop) return;
+  const shouldShow = !!spiritDrag && isPower7GivePendingForMe();
+  spiritGuidePop.classList.toggle('hidden', !shouldShow);
 }
 
 function applyPlayableAnimToMyHand(){
@@ -3965,6 +3984,7 @@ function updateGameUI(){
   applyPlayableAnimToMyHand();
   updatePower10UI();
   updateCrystalGuidePop();
+  updateSpiritGuidePop();
   updateCrystalSelectingTopPop();
 
   if (started){
@@ -4171,6 +4191,7 @@ function renderMyHand(){
       pass.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (isCoinOwnerChangeRequired()) return;
+        if (isPower7GivePendingForMe()) return;
         if (isMyPower11Selectable()) return;
         if (isPower5SelectionIncomplete()) return;
         if (isMyPlayLockedByPower5Waiting()) return;
@@ -4572,6 +4593,7 @@ function renderPlayerCircle(players){
   ui.nodeByUserId.clear();
   ui.tagByUserId.clear();
   ui.owncoinByUserId.clear();
+  ui.handcircleByUserId.clear();
   ui.miniHandByUserId.clear();
   ui.miniHandHitByUserId.clear();
   ui.miniHandSquareByUserId.clear();
@@ -4667,6 +4689,7 @@ function renderPlayerCircle(players){
       ui.miniHandByUserId.set(p.id, miniHand);
       ui.miniHandHitByUserId.set(p.id, hit);
       ui.miniHandSquareByUserId.set(p.id, square);
+      ui.handcircleByUserId.set(p.id, handcircle);
     }
 
     node.appendChild(owncoin);
@@ -5625,6 +5648,7 @@ function startDragCard(e, payload){
   if (phase !== 'collect' && !power10Allowed) return;
   if (!power10Allowed && isEveryoneDecided()) return;
   if (!power10Allowed && !isMyCollectTurn()) return;
+  if (!power10Allowed && isPower7GivePendingForMe()) return;
   if (payload.kind !== 'role') return;
 
   // ★効果3/4で選べない人はドラッグ不可
@@ -5710,6 +5734,7 @@ async function setMyPlay({ kind, cardName=null }){
   if (phase !== 'collect' && !power10Allowed) return;
   if (!power10Allowed && isEveryoneDecided()) return;
   if (!power10Allowed && !isMyCollectTurn()) return;
+  if (!power10Allowed && isPower7GivePendingForMe()) return;
 
   // ★効果3/4で選べない人は「出さない」も不可
   if (!power10Allowed && isMyPlayLockedByPower34()) return;
@@ -5845,6 +5870,14 @@ function getOwncoinHitUserId(clientX, clientY){
     const dy = clientY - cy;
     const rad = r.width/2;
     if ((dx*dx + dy*dy) <= (rad*rad)) return uid;
+  }
+  return null;
+}
+
+function getHandcircleHitUserId(clientX, clientY){
+  for (const [uid, handcircle] of ui.handcircleByUserId){
+    const r = handcircle.getBoundingClientRect();
+    if (rectContainsPoint(r, clientX, clientY)) return uid;
   }
   return null;
 }
@@ -6214,8 +6247,6 @@ function updatePower7UI(){
   }
 }
 
-let spiritDrag = null;
-
 function moveSpiritGhost(x, y){
   const g = spiritDrag?.ghost;
   if (!g) return;
@@ -6245,6 +6276,7 @@ function startDragSpirit(e){
 
   spiritCard.style.opacity = '0.25';
   spiritDrag = { pointerId, ghost };
+  updateSpiritGuidePop();
 
   moveSpiritGhost(e.clientX, e.clientY);
 
@@ -6261,8 +6293,9 @@ function startDragSpirit(e){
     spiritDrag.ghost.remove();
     spiritDrag = null;
     spiritCard.style.opacity = '';
+    updateSpiritGuidePop();
 
-    const hitUid = getOwncoinHitUserId(ev.clientX, ev.clientY);
+    const hitUid = getHandcircleHitUserId(ev.clientX, ev.clientY);
     if (!hitUid) return;
 
     const targetName = (state.players || []).find(p => p.id === hitUid)?.name || '誰か';
