@@ -446,7 +446,7 @@
     transition: left 0.45s ease, top 0.45s ease;
     will-change: left, top;
   }
-  /* ★更新：全員提出後シャッフルは効果3/4と同じ（傾けて固定＋上2枚のみ横スライド） */
+  /* ★更新：全員提出後シャッフル（束の外に1枚だけ2回スライド） */
   .played-back.shuffling{
     --collect-base-rot:5deg;
     --collect-offset-x:4px;
@@ -462,7 +462,7 @@
     ) rotate(var(--collect-base-rot));
   }
   .played-back.shuffling.slide-card{
-    animation: collectCenterShuffle 460ms ease-in-out 3 both;
+    animation: collectCenterShuffle 460ms ease-in-out 2 both;
     animation-delay: calc(var(--collect-gather-ms) + var(--collect-pause-ms));
   }
   .played-x.shuffling{
@@ -5063,7 +5063,7 @@ function renderPlayedMarkers(){
       marker.style.setProperty('--stack-depth', String(depth));
       marker.style.setProperty('--collect-gather-ms', String(COLLECT_SHUFFLE_GATHER_MS) + 'ms');
       marker.style.setProperty('--collect-pause-ms', String(COLLECT_SHUFFLE_PAUSE_MS) + 'ms');
-      marker.classList.toggle('slide-card', stackPos >= 0 && stackPos >= roleIdsForShuffle.length - 2);
+      marker.classList.toggle('slide-card', stackPos >= 0 && stackPos === roleIdsForShuffle.length - 1);
     } else {
       marker.classList.remove('shuffling', 'slide-card');
       marker.style.removeProperty('--stack-depth');
@@ -5081,7 +5081,7 @@ function renderPlayedMarkers(){
     } else {
       const seatAngleDeg = getSeatAngleDeg(uid);
       marker.style.transform = isShuffle
-        ? 'translate(-50%,-50%)'
+        ? ''
         : `translate(-50%,-50%) rotate(${seatAngleDeg}deg)`;
     }
   }
@@ -5284,7 +5284,7 @@ function maybeHostAdvanceRound(){
   if (phase === 'shuffle'){
     const t = Number(state.game.shuffleStartedAt || 0);
     const now = Date.now();
-    const remain = (t ? (1900 - (now - t)) : 0);
+    const remain = (t ? (1450 - (now - t)) : 0);
 
     if (remain <= 0){
       hostStepShuffleToTable();
