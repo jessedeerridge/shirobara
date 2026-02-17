@@ -2472,6 +2472,44 @@ function getPower5OrderInfo(p5){
   if (da === db) return null;
   return da < db ? { firstId: a, secondId: b } : { firstId: b, secondId: a };
 }
+function getCollectTurnOrder(){
+  const players = (state.players || []).filter(p => p && p.id != null);
+  if (!players.length) return [];
+
+  const ownerId = state.coins?.[COIN_ID]?.ownerId || null;
+  if (!ownerId) return [];
+
+  if (getSeatIndexByUid(ownerId) == null) return [];
+
+  return players
+    .slice()
+    .sort((a, b) => {
+      const da = getClockwiseDistanceFrom(ownerId, a.id);
+      const db = getClockwiseDistanceFrom(ownerId, b.id);
+      if (da == null && db == null) return 0;
+      if (da == null) return 1;
+      if (db == null) return -1;
+      if (da !== db) return da - db;
+      return (a.seatIndex || 0) - (b.seatIndex || 0);
+    })
+    .map(p => p.id);
+}
+function getCurrentTurnUid(){
+  const started = !!state.game?.started;
+  const phase = state.game?.phase || 'collect';
+  if (!started || phase !== 'collect') return null;
+
+  const order = getCollectTurnOrder();
+  if (!order.length) return null;
+
+  for (const uid of order){
+    if (!state.plays?.[uid]) return uid;
+  }
+  return null;
+}
+function isMyTurnToAct(){
+  return getCurrentTurnUid() === state.userId;
+}
 function getRightUid(uid){
   const seatIndex = getSeatIndexByUid(uid);
   if (seatIndex == null) return null;
@@ -2760,15 +2798,20 @@ function isPower10ChangeAllowed(uid = state.userId){
   return true;
 }
 function isSelectingOtherHandsNow(){
+  const phase = state.game?.phase || 'collect';
+  if (phase === 'collect' && !isMyTurnToAct()) return false;
   return isMyPower11Selectable() || isMyPower112Selectable() || isMyPower10Selecting() || isMyPower5Selectable();
 }
 
 
 /* ★選択モードUI：ミニ手札のパルス＆当たり判定 */
 function updateSelectModeUI() {
+    const inCollect = (state.game?.phase || 'collect') === 'collect';
+    const myTurn = isMyTurnToAct();
+
     const selectingPower10 = isMyPower10Selecting();
-    const selectingOther = isMyPower11Selectable() || isMyPower112Selectable();
-    const selectingPower5 = isMyPower5Selectable(); // 変更された関数を使用
+    const selectingOther = inCollect && myTurn && (isMyPower11Selectable() || isMyPower112Selectable());
+    const selectingPower5 = inCollect && myTurn && isMyPower5Selectable(); // 変更された関数を使用
 
     for (const p of (state.players || [])) {
         if (p.id === state.userId) continue;
@@ -3655,6 +3698,7 @@ function isRolePlayableNow() {
     if (phase !== 'collect') {
         return isPower10ChangeAllowed();
     }
+    if (!isMyTurnToAct()) return false;
     if (isFirstRoundWithoutCrystalOwner()) return false;
     if (isCoinOwnerChangeRequired()) return false;
     if (isPower5SelectionIncomplete()) return false; // ここで変更された関数を使用
@@ -3979,6 +4023,7 @@ async function maybeAutoPassWhenNoHand(){
   const started = !!state.game?.started;
   const phase = state.game?.phase || 'collect';
   if (!started || phase !== 'collect') return;
+  if (!isMyTurnToAct()) return;
 
   if (state.plays?.[state.userId]) return;
 
@@ -5292,6 +5337,7 @@ function startDragCard(e, payload){
   const phase = state.game.phase || 'collect';
   const power10Allowed = isPower10ChangeAllowed();
   if (phase !== 'collect' && !power10Allowed) return;
+  if (!power10Allowed && !isMyTurnToAct()) return;
   if (!power10Allowed && isEveryoneDecided()) return;
   if (payload.kind !== 'role') return;
 
@@ -5374,6 +5420,7 @@ async function setMyPlay({ kind, cardName=null }){
   const phase = state.game.phase || 'collect';
   const power10Allowed = isPower10ChangeAllowed();
   if (phase !== 'collect' && !power10Allowed) return;
+  if (!power10Allowed && !isMyTurnToAct()) return;
   if (!power10Allowed && isEveryoneDecided()) return;
 
   // ★効果3/4で選べない人は「出さない」も不可
