@@ -213,7 +213,7 @@
   }
   .player-tag .mini-hand-square{
     position:absolute;
-    left:calc(50% - 40px);
+    left:calc(50% - 53px);
     top:100%;
     transform:translate(-50%,10px);
 
@@ -5352,9 +5352,8 @@ function startDragCard(e, payload){
   target.classList.add('dragging');
 
   const ghost = target.cloneNode(true);
-  ghost.classList.remove('dragging', 'playable');
+  ghost.classList.remove('dragging');
   ghost.classList.add('drag-ghost');
-  ghost.style.transform = 'translate(-50%, -50%)';
   mainEl.appendChild(ghost);
 
   drag = {
