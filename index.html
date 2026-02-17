@@ -449,8 +449,8 @@
   /* ★更新：全員提出後シャッフル（束の外に1枚だけ2回スライド） */
   .played-back.shuffling{
     --collect-base-rot:5deg;
-    --collect-offset-x:4px;
-    --collect-offset-y:4px;
+    --collect-offset-x:0px;
+    --collect-offset-y:0px;
     --collect-slide-x:66px;
     --collect-gather-ms:450ms;
     --collect-pause-ms:30ms;
@@ -5059,7 +5059,7 @@ function renderPlayedMarkers(){
       marker.style.top  = `${shufflePoint.y}px`;
 
       const stackPos = roleIdsForShuffle.indexOf(uid);
-      const depth = stackPos >= 0 ? Math.max(roleIdsForShuffle.length - 1 - stackPos, 0) : 0;
+      const depth = 0;
       marker.style.setProperty('--stack-depth', String(depth));
       marker.style.setProperty('--collect-gather-ms', String(COLLECT_SHUFFLE_GATHER_MS) + 'ms');
       marker.style.setProperty('--collect-pause-ms', String(COLLECT_SHUFFLE_PAUSE_MS) + 'ms');
