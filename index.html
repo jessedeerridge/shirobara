@@ -115,22 +115,15 @@
   }
   .coin-warning-pop.hidden{display:none;}
 
-  .crystal-select-pop{
-    position:absolute;
-    left:50%;
-    top:62px;
-    transform:translateX(-50%);
-    background:rgba(20,20,20,.92);
-    color:#fff;
-    padding:7px 10px;
-    border-radius:10px;
-    font-size:11px;
-    font-weight:800;
-    white-space:nowrap;
+  .crystal-guide-pop{
+    position:fixed;left:50%;bottom:10px;transform:translateX(-50%);
+    background:rgba(20,20,20,.92);color:#fff;
+    padding:12px 16px;border-radius:14px;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+    z-index:228;font-weight:800;white-space:nowrap;
     pointer-events:none;
-    box-shadow:0 10px 18px rgba(0,0,0,.28);
-    z-index:40;
   }
+  .crystal-guide-pop.hidden{display:none;}
 
   /* ★ プレイヤー円配置用 */
   .player-circle{
@@ -200,6 +193,7 @@
   }
   .owned-coin-dot:active{cursor:grabbing;}
   .owned-coin-dot.locked{opacity:.6; cursor:not-allowed; pointer-events:none;}
+  .owned-coin-dot.no-drag{cursor:default;}
 
   /* 他プレイヤーのミニカード（ネームタグの下に扇状） */
   .player-tag .mini-hand{
@@ -1513,6 +1507,7 @@
 
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
 <div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
+<div id="crystalGuidePop" class="crystal-guide-pop hidden">水晶を使用するプレイヤーを選んでください。</div>
 
 <div id="seatPop" class="seat-pop hidden">
 
@@ -1635,6 +1630,7 @@ const copyLinkBtn = document.getElementById('copyLinkBtn');
 
 const hostSelectingPop = document.getElementById('hostSelectingPop');
 const coinWarningPop = document.getElementById('coinWarningPop');
+const crystalGuidePop = document.getElementById('crystalGuidePop');
 
 const seatPop = document.getElementById('seatPop');
 const seatTabs = document.getElementById('seatTabs');
@@ -2407,6 +2403,7 @@ function subscribeCoins(){
     updatePower7UI();
     applyPlayableAnimToMyHand();
     maybeResetPower5Link();
+    updateCrystalGuidePop();
   });
 }
 function subscribeDiscard(){
@@ -3707,6 +3704,7 @@ function updateGameUI(){
 
   applyPlayableAnimToMyHand();
   updatePower10UI();
+  updateCrystalGuidePop();
 
   if (started){
     requestAnimationFrame(() => {
@@ -3725,6 +3723,13 @@ function showCoinWarningPop(){
   coinWarningTimer = setTimeout(() => {
     coinWarningPop.classList.add('hidden');
   }, 1600);
+}
+
+function updateCrystalGuidePop(){
+  if (!crystalGuidePop) return;
+  const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
+  const shouldShow = canCurrentUserDragOwnedCrystal(ownerId);
+  crystalGuidePop.classList.toggle('hidden', !shouldShow);
 }
 
 async function maybeClearCoinOwnerChangeLock(newOwnerId){
@@ -3749,6 +3754,7 @@ function renderHands(){
   updateSelectModeUI();
   renderPower11Arrow();
   renderPower5Link();
+  updateCrystalGuidePop();
 }
 
 function renderRoundPlayTable(){
@@ -4262,7 +4268,6 @@ function renderPlayerCircle(players){
   if (!players.length) return;
 
   const n = players.length;
-  const requiredOwnerId = isCoinOwnerChangeRequired() ? (state.game?.lastCoinOwnerId || null) : null;
   const radiusPct = 44;
   const step = (2 * Math.PI) / n;
   const anchorAngle = Math.PI / 2;
@@ -4290,13 +4295,6 @@ function renderPlayerCircle(players){
 
     const ownedCoins = document.createElement('div');
     ownedCoins.className = 'owned-coins';
-
-    if (requiredOwnerId && p.id === requiredOwnerId){
-      const pop = document.createElement('div');
-      pop.className = 'crystal-select-pop';
-      pop.textContent = '水晶を使用するプレイヤーを選んでください。';
-      node.appendChild(pop);
-    }
 
     node.addEventListener('click', () => {
       // ★選択中（効果11/1/12）は座席奪取クリックを無効化
@@ -5562,7 +5560,8 @@ function renderOwnedCoinsBadges(){
 
     const locked = !!(c.lockBy && c.lockBy !== state.userId);
     const dragLocked = !canCurrentUserDragOwnedCrystal(c.ownerId);
-    dot.classList.toggle('locked', locked || dragLocked);
+    dot.classList.toggle('locked', locked);
+    dot.classList.toggle('no-drag', !locked && dragLocked);
 
     dot.addEventListener('pointerdown', (e) => startDragCoinFromOwned(e, coinId, c.ownerId));
 
@@ -5719,7 +5718,7 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
   const ghost = srcEl.cloneNode(true);
   ghost.classList.add('drag-ghost');
   mainEl.appendChild(ghost);
-  srcEl.style.opacity = '0.25';
+  srcEl.style.opacity = '0';
 
   const prevState = {
     ownerId: c?.ownerId ?? currentOwnerId ?? null,
