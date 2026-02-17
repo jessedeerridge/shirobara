@@ -218,8 +218,8 @@
     transform:translate(-50%,10px);
 
     /* ★変更：画像が見えるよう少し大きめに（必要なら戻してOK） */
-    width:11px;
-    height:14px;
+    width:22px;
+    height:28px;
 
     border-radius:3px;
 
@@ -240,7 +240,7 @@
   }
   .player-tag .mini-hand-square.hidden{display:none;}
   .player-tag .mini-card{
-    position:absolute;left:50%;top:0;width:16px;height:22px;
+    position:absolute;left:50%;top:0;width:30px;height:48px;
     border-radius:4px;border:1px solid #bbb;
     background-image:url('baraura.jpg');
     background-size:cover;
@@ -429,7 +429,7 @@
   /* 提出した裏面ミニカード（プレイヤー→中央方向に表示） */
   .played-back{
     position:absolute;
-    width:22px;height:30px;
+    width:30px;height:48px;
     border-radius:6px;
     border:1px solid rgba(0,0,0,.25);
     background-image:url('baraura.jpg');
@@ -526,7 +526,7 @@
   }
 
   /* ===== 自分の手札表示（正体カード） ===== */
-  .my-hand-wrapper{margin-top:16px;text-align:center;}
+  .my-hand-wrapper{margin-top:48px;text-align:center;}
   .my-hand-title{display:none;}
   .my-hand{
     display:flex;
@@ -4320,7 +4320,7 @@ function renderPlayerCircle(players){
   if (!players.length) return;
 
   const n = players.length;
-  const radiusPct = 44;
+  const radiusPct = 60;
   const step = (2 * Math.PI) / n;
   const anchorAngle = Math.PI / 2;
   const meIndex = players.findIndex(p => p.id === state.userId);
