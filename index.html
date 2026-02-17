@@ -1689,7 +1689,6 @@
 <div id="hostSelectingPop" class="host-selecting-pop hidden">ホストが人数を選択中</div>
 <div id="coinWarningPop" class="coin-warning-pop hidden">もう水晶チップがありません。</div>
 <div id="crystalGuidePop" class="crystal-guide-pop hidden">水晶を使用するプレイヤーを選んでください。</div>
-<div id="power112GuidePop" class="crystal-guide-pop hidden">カードを出させるプレイヤーを選択してください。</div>
 <div id="crystalSelectingTopPop" class="crystal-selecting-top-pop hidden">誰かが水晶を使うプレイヤーを選択中</div>
 
 <div id="seatPop" class="seat-pop hidden">
@@ -1816,7 +1815,6 @@ const copyLinkBtn = document.getElementById('copyLinkBtn');
 const hostSelectingPop = document.getElementById('hostSelectingPop');
 const coinWarningPop = document.getElementById('coinWarningPop');
 const crystalGuidePop = document.getElementById('crystalGuidePop');
-const power112GuidePop = document.getElementById('power112GuidePop');
 const crystalSelectingTopPop = document.getElementById('crystalSelectingTopPop');
 
 const seatPop = document.getElementById('seatPop');
@@ -4037,9 +4035,7 @@ function isPower7GivePendingForMe(){
 }
 
 function updatePower112GuidePop(){
-  if (!power112GuidePop) return;
-  const shouldShow = isMyPlayLockedByPower112Selection();
-  power112GuidePop.classList.toggle('hidden', !shouldShow);
+  // 効果1/12の案内は下部のクリスタル効果ポップに統合したため、専用ポップは使わない
 }
 
 function updateSpiritDropTargets(){
@@ -4346,9 +4342,11 @@ function renderMyHand(){
     powerCardEl.textContent = String(n);
     powerTextEl.textContent = isPower10SelectingNow
       ? 'カードを変えるプレイヤーの手札を選んでください。'
-      : ((n === 7 && isPower7GivePendingForMe())
-          ? '霊魂を与えるプレイヤーを選んで、そのプレイヤーの手札までカードをドラッグしてください。'
-          : (POWER_TEXT[n] || ''));
+      : (isMyPlayLockedByPower112Selection()
+          ? 'カードを出させるプレイヤーを選択してください。'
+          : ((n === 7 && isPower7GivePendingForMe())
+              ? '霊魂を与えるプレイヤーを選んで、そのプレイヤーの手札までカードをドラッグしてください。'
+              : (POWER_TEXT[n] || '')));
     fitTextToBox(powerTextEl, 14, 9);
     if (powerPopExtraActions){
       powerPopExtraActions.classList.toggle('hidden', !isPower10SelectingNow);
