@@ -1941,7 +1941,7 @@ const POWER_TEXT = {
   4: "左隣りのプレイヤーはカードがあるなら、ランダムでカードを出す。",
   5: "指名した二人は必ず同じ行動を行う。\n（後の人が先の人をまねる。）",
   6: "全員がカードを出し終わった後に、\n自分がカードを出すかどうか決められる。",
-  7: "霊魂を与えるプレイヤーを選んで、\nそのプレイヤーの手札までカードをドラッグしてください。",
+  7: "あなたが指名した人は幽魂一枚を得る。",
   8: "左右のプレイヤーは、カードがあれば\n必ず出さなければならない。",
   9: "暗刃の者以外は目を閉じ、\n白薔薇と司教の二人は身分を明かさずに手をあげる。",
   10:"全員がカードを出し終わった後に、一人選ぶ。\nその人は出したカードを違うカードと交換する。",
@@ -4346,7 +4346,9 @@ function renderMyHand(){
     powerCardEl.textContent = String(n);
     powerTextEl.textContent = isPower10SelectingNow
       ? 'カードを変えるプレイヤーの手札を選んでください。'
-      : (POWER_TEXT[n] || '');
+      : ((n === 7 && isPower7GivePendingForMe())
+          ? '霊魂を与えるプレイヤーを選んで、そのプレイヤーの手札までカードをドラッグしてください。'
+          : (POWER_TEXT[n] || ''));
     fitTextToBox(powerTextEl, 14, 9);
     if (powerPopExtraActions){
       powerPopExtraActions.classList.toggle('hidden', !isPower10SelectingNow);
