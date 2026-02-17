@@ -443,8 +443,8 @@
   }
   .played-back,
   .played-x{
-    transition: left 0.45s ease, top 0.45s ease, transform 0.45s ease;
-    will-change: left, top, transform;
+    transition: left 0.45s ease, top 0.45s ease;
+    will-change: left, top;
   }
   /* ★更新：シャッフル時はカードだけアニメ、✕は消す */
   .played-back.shuffling{
@@ -4940,7 +4940,10 @@ function renderPlayedMarkers(){
       marker.style.backgroundImage = `url('${ASSET.roleFront[p.card] || ''}')`;
       marker.style.transform = `translate(-50%,-50%) scale(0.7)`;
     } else {
-      marker.style.transform = isShuffle ? 'translate(-50%,-50%)' : `translate(-50%,-50%) rotate(${(p.seatIndex||0)*3}deg)`;
+      const seatAngleDeg = getSeatAngleDeg(uid);
+      marker.style.transform = isShuffle
+        ? 'translate(-50%,-50%)'
+        : `translate(-50%,-50%) rotate(${seatAngleDeg}deg)`;
     }
   }
 }
