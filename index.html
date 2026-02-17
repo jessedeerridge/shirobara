@@ -2359,25 +2359,21 @@ async function transferSeatState(fromUid, toUid){
   const hands = handsSnap.val() || {};
   if (Object.prototype.hasOwnProperty.call(hands, fromUid)){
     hands[toUid] = hands[fromUid];
-    delete hands[fromUid];
   }
 
   const plays = playsSnap.val() || {};
   if (Object.prototype.hasOwnProperty.call(plays, fromUid)){
     plays[toUid] = plays[fromUid];
-    delete plays[fromUid];
   }
 
   const roundPlays = roundPlaysSnap.val() || {};
   if (Object.prototype.hasOwnProperty.call(roundPlays, fromUid)){
     roundPlays[toUid] = roundPlays[fromUid];
-    delete roundPlays[fromUid];
   }
 
   const users = usersSnap.val() || {};
   if (Object.prototype.hasOwnProperty.call(users, fromUid)){
     users[toUid] = users[fromUid];
-    delete users[fromUid];
   }
 
   const coinsRaw = coinsSnap.val() || {};
