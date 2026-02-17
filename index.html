@@ -5079,10 +5079,9 @@ function renderPlayedMarkers(){
       marker.style.backgroundImage = `url('${ASSET.roleFront[p.card] || ''}')`;
       marker.style.transform = `translate(-50%,-50%) scale(0.7)`;
     } else {
-      const seatAngleDeg = getSeatAngleDeg(uid);
       marker.style.transform = isShuffle
         ? ''
-        : `translate(-50%,-50%) rotate(${seatAngleDeg}deg)`;
+        : 'translate(-50%,-50%) rotate(4deg)';
     }
   }
 }
