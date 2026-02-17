@@ -743,7 +743,7 @@
   }
   .power-pop{
     width:280px;
-    height:64px;
+    min-height:64px;
     border-radius:14px;
     background:rgba(20,20,20,.92);
     color:#fff;
@@ -751,7 +751,8 @@
     padding:8px 10px;
     box-sizing:border-box;
     display:flex;
-    align-items:center;
+    flex-direction:column;
+    align-items:stretch;
     justify-content:center;
     text-align:left;
     line-height:1.25;
@@ -765,9 +766,15 @@
     word-break:break-word;
     font-size:14px;
   }
+  .power-pop-extra-actions{
+    margin-top:8px;
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+  }
+  .power-pop-extra-actions.hidden{display:none;}
 
   /* ★効果10：選択/確認/変更ポップ */
-  .power10-owner-pop,
   .power10-target-pop{
     position:fixed;
     left:50%;
@@ -785,13 +792,7 @@
     min-width:260px;
     font-weight:900;
   }
-  .power10-owner-pop.hidden,
   .power10-target-pop.hidden{display:none;}
-  .power10-owner-actions{
-    display:flex;
-    justify-content:flex-end;
-    gap:8px;
-  }
   .power10-confirm-pop{
     position:fixed;
     background:rgba(20,20,20,.92);
@@ -1637,20 +1638,17 @@
       <div class="power-wrapper" id="powerWrapper" style="display:none;">
         <div class="power-block">
           <div id="powerCard" class="power-card">?</div>
-          <div class="power-pop"><span id="powerText"></span></div>
+          <div class="power-pop">
+            <span id="powerText"></span>
+            <div id="powerPopExtraActions" class="power-pop-extra-actions hidden">
+              <button class="btn ghost power10-ghost" id="btnPower10Skip">選ばない</button>
+            </div>
+          </div>
         </div>
       </div>
    </div>
   </div>
 </main>
-
-<!-- ★効果10：選択/確認/変更ポップ -->
-<div id="power10OwnerPop" class="power10-owner-pop hidden">
-  <div>カードを変えさせるプレイヤーの手札を選んでください。</div>
-  <div class="power10-owner-actions">
-    <button class="btn ghost power10-ghost" id="btnPower10Skip">選ばない</button>
-  </div>
-</div>
 
 <div id="power10TargetPop" class="power10-target-pop hidden">
   カードを変えてください。
@@ -1857,7 +1855,7 @@ const powerWrapper = document.getElementById('powerWrapper');
 const powerCardEl = document.getElementById('powerCard');
 const powerTextEl = document.getElementById('powerText');
 
-const power10OwnerPop = document.getElementById('power10OwnerPop');
+const powerPopExtraActions = document.getElementById('powerPopExtraActions');
 const power10TargetPop = document.getElementById('power10TargetPop');
 const power10ConfirmPop = document.getElementById('power10ConfirmPop');
 const power10ConfirmName = document.getElementById('power10ConfirmName');
@@ -4080,7 +4078,9 @@ function updatePower10UI(){
   const isActive = started && phase === 'power10' && !!p10;
 
   const isOwnerSelecting = isActive && p10.status === 'selecting' && p10.ownerId === state.userId;
-  power10OwnerPop.classList.toggle('hidden', !isOwnerSelecting);
+  if (powerPopExtraActions){
+    powerPopExtraActions.classList.toggle('hidden', !isOwnerSelecting);
+  }
 
   const isTargetWaiting =
     isActive &&
@@ -4339,12 +4339,19 @@ function renderMyHand(){
 
   if (started && handData && handData.numberCard && !shouldHidePowerPop && !lostCrystal) {
     const n = Number(handData.numberCard);
+    const isPower10SelectingNow = (n === 10) && isMyPower10Selecting();
     powerWrapper.style.display = '';
     powerCardEl.textContent = String(n);
-    powerTextEl.textContent = POWER_TEXT[n] || '';
+    powerTextEl.textContent = isPower10SelectingNow
+      ? 'カードを変えるプレイヤーの手札を選んでください。'
+      : (POWER_TEXT[n] || '');
     fitTextToBox(powerTextEl, 14, 9);
+    if (powerPopExtraActions){
+      powerPopExtraActions.classList.toggle('hidden', !isPower10SelectingNow);
+    }
   } else {
     powerWrapper.style.display = 'none';
+    if (powerPopExtraActions) powerPopExtraActions.classList.add('hidden');
   }
 
   applyPlayableAnimToMyHand();
