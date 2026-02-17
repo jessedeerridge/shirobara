@@ -276,6 +276,22 @@
   }
   .player-tag .mini-hand-hit.active{ pointer-events:auto; }
 
+  /* 他プレイヤー手札の扇カードを囲む黒点線（塗りなし） */
+  .player-tag .handcircle{
+    position:absolute;
+    left:50%;
+    top:100%;
+    transform:translate(-50%,3px);
+    width:78px;
+    height:42px;
+    border:2px dashed #111;
+    border-radius:999px;
+    background:transparent;
+    pointer-events:none;
+    box-sizing:border-box;
+    z-index:0;
+  }
+
   /* ===== 中央エリア（discardtable / shuffle / table並べ） ===== */
  .center-area{
     position:absolute;
@@ -4611,6 +4627,9 @@ function renderPlayerCircle(players){
     const roleCount = (handData && Array.isArray(handData.roleCards)) ? handData.roleCards.length : 0;
 
     if (p.id !== state.userId && roleCount > 0){
+      const handCircle = document.createElement('div');
+      handCircle.className = 'handcircle';
+
       const miniHand = document.createElement('div');
       miniHand.className = 'mini-hand';
 
@@ -4633,6 +4652,7 @@ function renderPlayerCircle(players){
         miniHand.appendChild(c);
       }
       tag.appendChild(square);
+      tag.appendChild(handCircle);
       tag.appendChild(miniHand);
 
       // ★追加：クリック当たり判定（選択中だけ有効）
