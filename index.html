@@ -1158,6 +1158,9 @@
     pointer-events:auto;
   }
   .spirit-card:active{cursor:grabbing;}
+  .spirit-card.idle-anim{
+    animation: playablePulse 0.95s ease-in-out infinite;
+  }
 
   /* =========================
      ★更新：効果3/4の「自分の手札シャッフル」演出
@@ -1938,7 +1941,7 @@ const POWER_TEXT = {
   4: "左隣りのプレイヤーはカードがあるなら、ランダムでカードを出す。",
   5: "指名した二人は必ず同じ行動を行う。\n（後の人が先の人をまねる。）",
   6: "全員がカードを出し終わった後に、\n自分がカードを出すかどうか決められる。",
-  7: "霊魂を与えるプレイヤーを選んで、\nそのプレイヤーの手札までカードをドラッグしてください。",
+  7: "あなたが指名した人は幽魂一枚を得る。",
   8: "左右のプレイヤーは、カードがあれば\n必ず出さなければならない。",
   9: "暗刃の者以外は目を閉じ、\n白薔薇と司教の二人は身分を明かさずに手をあげる。",
   10:"全員がカードを出し終わった後に、一人選ぶ。\nその人は出したカードを違うカードと交換する。",
@@ -6383,6 +6386,7 @@ function updatePower7UI(){
     spiritCard.style.visibility = '';
   }
 
+  spiritCard.classList.toggle('idle-anim', shouldShow && !spiritDrag);
   updateSpiritDropTargets();
 }
 
@@ -6415,6 +6419,7 @@ function startDragSpirit(e){
 
   spiritCard.style.visibility = 'hidden';
   spiritDrag = { pointerId, ghost };
+  spiritCard.classList.remove('idle-anim');
   updateSpiritDropTargets();
 
   moveSpiritGhost(e.clientX, e.clientY);
@@ -6432,6 +6437,7 @@ function startDragSpirit(e){
     spiritDrag.ghost.remove();
     spiritDrag = null;
     spiritCard.style.visibility = '';
+    spiritCard.classList.toggle('idle-anim', isPower7GivePendingForMe());
     updateSpiritDropTargets();
 
     const hitUid = getHandcircleHitUserId(ev.clientX, ev.clientY);
