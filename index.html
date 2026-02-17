@@ -3490,13 +3490,14 @@ function startPower34ShuffleAnim(){
     animateSwap(front, back, 3);
   };
 
-  power34ShuffleMotionTimer = setTimeout(() => {
+  const animateCut = (dir, onDone) => {
     overlays.forEach((overlay, idx) => {
       const g = gatherState[idx];
       const side = (idx % 2 === 0) ? -1 : 1;
-      const cutRot = g.rot + side * 1.5;
+      const shift = side * dir;
+      const cutRot = g.rot + shift * 1.5;
       overlay.style.transition = `transform ${cutDur}ms ease-in-out`;
-      overlay.style.transform = `translate(${g.dx + side * cutX}px, ${g.dy}px) rotate(${cutRot}deg)`;
+      overlay.style.transform = `translate(${g.dx + shift * cutX}px, ${g.dy}px) rotate(${cutRot}deg)`;
     });
 
     power34ShuffleMotionTimer = setTimeout(() => {
@@ -3507,9 +3508,17 @@ function startPower34ShuffleAnim(){
       });
 
       power34ShuffleMotionTimer = setTimeout(() => {
-        startSwapPhase();
+        onDone?.();
       }, cutDur + 20);
     }, cutDur + 10);
+  };
+
+  power34ShuffleMotionTimer = setTimeout(() => {
+    animateCut(1, () => {
+      animateCut(-1, () => {
+        startSwapPhase();
+      });
+    });
   }, moveToCenterMs + 30);
 }
 
