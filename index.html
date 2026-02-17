@@ -289,6 +289,10 @@
     background:transparent;
     pointer-events:none;
     z-index:119;
+    transition: background-color .12s ease;
+  }
+  .player-tag .handcircle.spirit-drag-target{
+    background:rgba(56, 189, 248, .25);
   }
 
   /* ===== 中央エリア（discardtable / shuffle / table並べ） ===== */
@@ -4660,6 +4664,7 @@ function renderPlayerCircle(players){
       handcircle.className = 'handcircle';
       tag.appendChild(handcircle);
       ui.handcircleByUserId.set(p.id, handcircle);
+      handcircle.classList.toggle('spirit-drag-target', !!spiritDrag);
 
       if (roleCount > 0){
         const miniHand = document.createElement('div');
@@ -6266,6 +6271,12 @@ function updatePower7UI(){
 
 let spiritDrag = null;
 
+function setSpiritDragHint(active){
+  for (const handcircle of ui.handcircleByUserId.values()){
+    handcircle.classList.toggle('spirit-drag-target', !!active);
+  }
+}
+
 function moveSpiritGhost(x, y){
   const g = spiritDrag?.ghost;
   if (!g) return;
@@ -6295,6 +6306,7 @@ function startDragSpirit(e){
 
   spiritCard.style.opacity = '0.25';
   spiritDrag = { pointerId, ghost };
+  setSpiritDragHint(true);
 
   moveSpiritGhost(e.clientX, e.clientY);
 
@@ -6311,6 +6323,7 @@ function startDragSpirit(e){
     spiritDrag.ghost.remove();
     spiritDrag = null;
     spiritCard.style.opacity = '';
+    setSpiritDragHint(false);
 
     const hitUid = getHandcircleHitUserId(ev.clientX, ev.clientY);
     if (!hitUid) return;
