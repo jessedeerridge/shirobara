@@ -446,9 +446,9 @@
     transition: left 0.45s ease, top 0.45s ease;
     will-change: left, top;
   }
-  /* ★更新：全員提出後シャッフル（束の外に1枚だけ2回スライド） */
+  /* ★更新：全員提出後シャッフル（全カード4度 + 2枚を横スライド） */
   .played-back.shuffling{
-    --collect-base-rot:5deg;
+    --collect-base-rot:4deg;
     --collect-offset-x:0px;
     --collect-offset-y:0px;
     --collect-slide-x:66px;
@@ -464,6 +464,12 @@
   .played-back.shuffling.slide-card{
     animation: collectCenterShuffle 460ms ease-in-out 2 both;
     animation-delay: calc(var(--collect-gather-ms) + var(--collect-pause-ms));
+  }
+  .played-back.shuffling.slide-card-left{
+    --collect-slide-x:-66px;
+  }
+  .played-back.shuffling.slide-card-right{
+    --collect-slide-x:66px;
   }
   .played-x.shuffling{
     /* シャッフル中はその場でフェードアウトして消えるだけ */
@@ -5063,9 +5069,16 @@ function renderPlayedMarkers(){
       marker.style.setProperty('--stack-depth', String(depth));
       marker.style.setProperty('--collect-gather-ms', String(COLLECT_SHUFFLE_GATHER_MS) + 'ms');
       marker.style.setProperty('--collect-pause-ms', String(COLLECT_SHUFFLE_PAUSE_MS) + 'ms');
-      marker.classList.toggle('slide-card', stackPos >= 0 && stackPos === roleIdsForShuffle.length - 1);
+      const lastIdx = roleIdsForShuffle.length - 1;
+      const secondLastIdx = roleIdsForShuffle.length - 2;
+      const slideLeft = stackPos >= 0 && stackPos === secondLastIdx;
+      const slideRight = stackPos >= 0 && stackPos === lastIdx;
+
+      marker.classList.toggle('slide-card', slideLeft || slideRight);
+      marker.classList.toggle('slide-card-left', slideLeft);
+      marker.classList.toggle('slide-card-right', slideRight);
     } else {
-      marker.classList.remove('shuffling', 'slide-card');
+      marker.classList.remove('shuffling', 'slide-card', 'slide-card-left', 'slide-card-right');
       marker.style.removeProperty('--stack-depth');
       marker.style.removeProperty('--collect-gather-ms');
       marker.style.removeProperty('--collect-pause-ms');
