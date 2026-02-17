@@ -1066,6 +1066,14 @@
     display:none;
     z-index:560;
     pointer-events:none;
+    --p34-outX:66px;
+    --p34-offsetX:4px;
+    --p34-offsetY:4px;
+    --p34-tiltBase:5deg;
+    --p34-tiltMore:5deg;
+    --p34-durOut:220ms;
+    --p34-durIn:220ms;
+    --p34-pause:20ms;
   }
   .power34-shuffle-overlay.show{display:block;}
   .power34-shuffle-card{
@@ -1075,12 +1083,22 @@
     background-size:cover;
     background-position:center;
     box-shadow:0 12px 24px rgba(0,0,0,.25);
-    transform:translate(0,0) rotate(0deg);
-    transition:transform 0.55s ease;
+    transform:translate(0,0) rotate(var(--p34-tiltBase));
     will-change:transform;
   }
-  .power34-shuffle-overlay.stacked .power34-shuffle-card{
-    transform:translate(var(--tx), var(--ty)) rotate(var(--rot));
+  .power34-shuffle-card.back{
+    transform:translate(var(--p34-offsetX), var(--p34-offsetY)) rotate(var(--p34-tiltBase));
+  }
+  .power34-shuffle-card.front{
+    transform:translate(0,0) rotate(var(--p34-tiltBase));
+  }
+  .power34-shuffle-card.movingOut{
+    transition:transform var(--p34-durOut) ease-in-out;
+    transform:translate(var(--p34-outX), 0) rotate(calc(var(--p34-tiltBase) + var(--p34-tiltMore)));
+  }
+  .power34-shuffle-card.movingIn{
+    transition:transform var(--p34-durIn) ease-in-out;
+    transform:translate(var(--p34-offsetX), var(--p34-offsetY)) rotate(var(--p34-tiltBase));
   }
 
   /* =========================
@@ -3346,11 +3364,12 @@ function maybeRefreshPower5PassUI(){
 
 
 /* =========================
-   ★効果3/4 強制提出（6秒待機＋対象クリックで即実行）
+   ★効果3/4 強制提出（1.5秒待機で自動実行）
    （ここから下はユーザーコードを維持しつつ、そのまま）
    ========================= */
 let power34ShuffleActive = false;
 let power34ShuffleCleanupTimer = null;
+let power34ShuffleMotionTimer = null;
 let lastPower34AnimAt = 0;
 let power34WaitTimer = null;
 let power34WaitKey = null;
@@ -3368,8 +3387,12 @@ function clearPower34ShuffleOverlay(){
     clearTimeout(power34ShuffleCleanupTimer);
     power34ShuffleCleanupTimer = null;
   }
+  if (power34ShuffleMotionTimer){
+    clearTimeout(power34ShuffleMotionTimer);
+    power34ShuffleMotionTimer = null;
+  }
   if (!power34ShuffleOverlay) return;
-  power34ShuffleOverlay.classList.remove('stacked', 'show');
+  power34ShuffleOverlay.classList.remove('show');
   power34ShuffleOverlay.innerHTML = '';
   myHandEl.classList.remove('power34-hidden');
   power34ShuffleActive = false;
@@ -3383,13 +3406,13 @@ function startPower34ShuffleAnim(){
   const handRect = myHandEl.getBoundingClientRect();
   const sampleRect = cards[0].getBoundingClientRect();
   const stackX = handRect.left + handRect.width / 2 - sampleRect.width / 2;
-  const stackY = handRect.top + Math.min(handRect.height * 0.45, 50);
+  const stackY = handRect.top + handRect.height * 0.5 - sampleRect.height / 2;
 
   power34ShuffleOverlay.innerHTML = '';
   power34ShuffleOverlay.classList.add('show');
   myHandEl.classList.add('power34-hidden');
 
-  cards.forEach((card, idx) => {
+  const overlays = cards.map((card, idx) => {
     const rect = card.getBoundingClientRect();
     const overlay = document.createElement('div');
     overlay.className = 'power34-shuffle-card';
@@ -3398,28 +3421,75 @@ function startPower34ShuffleAnim(){
     overlay.style.left = `${rect.left}px`;
     overlay.style.top = `${rect.top}px`;
     overlay.style.backgroundImage = `url('${ASSET.roleBack}')`;
-    const dx = stackX - rect.left;
-    const dy = stackY - rect.top;
-    const rot = (Math.random() * 18 - 9).toFixed(1);
-    overlay.style.setProperty('--tx', `${dx}px`);
-    overlay.style.setProperty('--ty', `${dy}px`);
-    overlay.style.setProperty('--rot', `${rot}deg`);
     overlay.style.zIndex = String(560 + idx);
     power34ShuffleOverlay.appendChild(overlay);
+    return overlay;
+  });
+
+  const moveToCenterMs = 220;
+  const durOut = 220;
+  const durIn = 220;
+  const pause = 20;
+
+  requestAnimationFrame(() => {
+    overlays.forEach((overlay, idx) => {
+      overlay.style.transition = `transform ${moveToCenterMs}ms ease-in-out`;
+      const dx = stackX - parseFloat(overlay.style.left);
+      const dy = stackY - parseFloat(overlay.style.top);
+      const rot = idx === overlays.length - 1 ? '5deg' : '3deg';
+      overlay.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot})`;
+    });
   });
 
   power34ShuffleActive = true;
-  requestAnimationFrame(() => {
-    power34ShuffleOverlay.classList.add('stacked');
-  });
+
+  const animateSwap = (front, back, count) => {
+    if (!power34ShuffleActive || !front || !back || count <= 0) return;
+
+    front.classList.remove('movingIn');
+    void front.offsetWidth;
+    front.classList.add('movingOut');
+
+    power34ShuffleMotionTimer = setTimeout(() => {
+      front.classList.remove('movingOut', 'front');
+      front.classList.add('back');
+      back.classList.remove('back');
+      back.classList.add('front');
+
+      back.classList.remove('movingOut');
+      void back.offsetWidth;
+      back.classList.add('movingIn');
+
+      power34ShuffleMotionTimer = setTimeout(() => {
+        back.classList.remove('movingIn');
+        power34ShuffleMotionTimer = setTimeout(() => {
+          animateSwap(back, front, count - 1);
+        }, pause);
+      }, durIn);
+    }, durOut);
+  };
+
+  power34ShuffleMotionTimer = setTimeout(() => {
+    const back = overlays[overlays.length - 2] || overlays[0];
+    const front = overlays[overlays.length - 1] || overlays[0];
+    if (!back || !front) return;
+
+    overlays.forEach((overlay, idx) => {
+      overlay.classList.remove('front', 'back', 'movingOut', 'movingIn');
+      if (idx === overlays.length - 1) overlay.classList.add('front');
+      else if (idx === overlays.length - 2) overlay.classList.add('back');
+      else overlay.classList.add('back');
+    });
+
+    animateSwap(front, back, 3);
+  }, moveToCenterMs + 30);
 }
 
 function endPower34ShuffleAnim(){
   if (!power34ShuffleActive || !power34ShuffleOverlay) return;
-  power34ShuffleOverlay.classList.remove('stacked');
   power34ShuffleCleanupTimer = setTimeout(() => {
     clearPower34ShuffleOverlay();
-  }, 520);
+  }, 180);
 }
 
 /** ★現在の power34 文脈（実行判定に必要な情報を一箇所で算出） */
@@ -3449,60 +3519,9 @@ function getPower34Context(){
   const triggerAt = Number(triggerPlay.playedAt || 0);
   if (!triggerAt) return null;
 
-  const scheduledAt = triggerAt + 6000;
+  const scheduledAt = triggerAt + 1500;
 
   return { round, ownerId, num, forcedUid, triggerUid, triggerAt, scheduledAt };
-}
-
-/** ★対象プレイヤーが「自分の手札を1回クリック」した印（DBに残して全端末で即実行へ） */
-async function markPower34ForcedClicked(){
-  if (!state.roomCode) return;
-  const ctx = getPower34Context();
-  if (!ctx) return;
-  if (ctx.forcedUid !== state.userId) return;
-  if (state.plays?.[ctx.forcedUid]) return;
-
-  const base = `rooms/${state.roomCode}`;
-  const p34Ref = ref(db, `${base}/game/power34`);
-  const now = Date.now();
-
-  await runTransaction(p34Ref, (cur) => {
-    const c = cur || {};
-    const same =
-      c.round === ctx.round &&
-      c.ownerId === ctx.ownerId &&
-      Number(c.number) === ctx.num &&
-      c.triggerUid === ctx.triggerUid &&
-      c.forcedUid === ctx.forcedUid &&
-      Number(c.triggerAt) === ctx.triggerAt;
-
-    if (!same){
-      return {
-        round: ctx.round,
-        ownerId: ctx.ownerId,
-        number: ctx.num,
-        triggerUid: ctx.triggerUid,
-        forcedUid: ctx.forcedUid,
-        triggerAt: ctx.triggerAt,
-        scheduledAt: ctx.scheduledAt,
-        clickedAt: now,
-        done: false,
-        claimedBy: null,
-        claimedAt: null,
-        animAt: null,
-        forcedCard: null,
-        result: null
-      };
-    }
-
-    if (c.done) return c;
-    if (c.clickedAt) return c;
-    c.clickedAt = now;
-    return c;
-  });
-
-  // クリックを付けたら即時判定（実行へ）
-  maybeTriggerPower34AutoPlays();
 }
 
 /** ★実行本体（安全側：失敗時の復旧も行う） */
@@ -3541,6 +3560,9 @@ async function executePower34Now(ctx){
     if (!c.animAt) c.animAt = Date.now();
     return c;
   });
+
+  // 演出が見える最小待機
+  await new Promise(resolve => setTimeout(resolve, 760));
 
   // ★削除はトランザクション（2回だけ安全リトライ）
   let removed = false;
@@ -3608,7 +3630,7 @@ async function executePower34Now(ctx){
   await update(p34Ref, { done:true, doneAt: Date.now(), result:'ok', forcedCard: finalPick });
 }
 
-/** ★監視：条件を満たしたら（6秒経過 or clickedAt）1回だけ claim して実行 */
+/** ★監視：条件を満たしたら（1.5秒経過）1回だけ claim して実行 */
 async function maybeTriggerPower34AutoPlays(){
   if (!state.roomCode) return;
 
@@ -3647,7 +3669,6 @@ async function maybeTriggerPower34AutoPlays(){
         forcedUid: ctx.forcedUid,
         triggerAt: ctx.triggerAt,
         scheduledAt: ctx.scheduledAt,
-        clickedAt: null,
         done: false,
         claimedBy: null,
         claimedAt: null,
@@ -3686,12 +3707,8 @@ async function maybeTriggerPower34AutoPlays(){
 
   const now = Date.now();
   const scheduledAt = Number(p34.scheduledAt || ctx.scheduledAt);
-  const clickedAt = Number(p34.clickedAt || 0);
 
-  const readyByTime = now >= scheduledAt;
-  const readyByClick = !!clickedAt && clickedAt >= ctx.triggerAt;
-
-  if (!readyByTime && !readyByClick){
+  if (now < scheduledAt){
     // ★まだ待機 → scheduledAt で起動
     const remain = Math.max(0, scheduledAt - now);
     const key = `${ctx.round}|${ctx.num}|${ctx.ownerId}|${ctx.triggerUid}|${ctx.forcedUid}|${ctx.triggerAt}|${scheduledAt}`;
@@ -3709,21 +3726,19 @@ async function maybeTriggerPower34AutoPlays(){
     clearPower34WaitTimer();
   }
 
-  // ★claim（ready条件を満たした時だけ）
+  // ★claim（scheduledAt 到達時に1回だけ）
   const claim = await runTransaction(p34Ref, (cur) => {
     const c = cur || {};
     if (c.done) return c;
 
     const sAt = Number(c.scheduledAt || ctx.scheduledAt);
-    const cAt = Number(c.clickedAt || 0);
-    const ready = (Date.now() >= sAt) || (!!cAt && cAt >= ctx.triggerAt);
-    if (!ready) return c;
+    if (Date.now() < sAt) return c;
 
     if (c.claimedBy) return c;
 
     c.claimedBy = state.userId;
     c.claimedAt = Date.now();
-    c.execReason = (Date.now() >= sAt) ? 'time' : 'click';
+    c.execReason = 'time';
     return c;
   });
 
@@ -4031,17 +4046,6 @@ function renderMyHand(){
       card.addEventListener('pointerdown', (e) => {
         if (!isRolePlayableNow()) return;
         startDragCard(e, { kind:'role', cardName:name });
-      });
-
-      // ★追加（最小）：power34対象プレイヤーが「自分の手札を1回クリック」→即実行
-     card.addEventListener('click', (e) => {
-        if (!state.game?.started) return;
-        if (isCoinOwnerChangeRequired()) return;
-        const ctx = getPower34Context();
-        if (!ctx) return;
-        if (ctx.forcedUid !== state.userId) return; // 対象以外は無関係
-        if (state.plays?.[state.userId]) return;
-        markPower34ForcedClicked();
       });
 
       myHandEl.appendChild(card);
