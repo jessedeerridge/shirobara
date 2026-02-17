@@ -451,14 +451,14 @@
     --collect-base-rot:5deg;
     --collect-offset-x:4px;
     --collect-offset-y:4px;
-    --collect-slide-x:42px;
+    --collect-slide-x:66px;
     transform:translate(
       calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-x))),
       calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-y)))
     ) rotate(var(--collect-base-rot));
   }
   .played-back.shuffling.slide-card{
-    animation: collectPower34Slide 200ms ease-in-out 4 alternate both;
+    animation: collectPower34Slide 460ms linear 2 both;
   }
   .played-x.shuffling{
     /* シャッフル中はその場でフェードアウトして消えるだけ */
@@ -466,17 +466,29 @@
     transform:translate(-50%,-50%);
   }
   @keyframes collectPower34Slide{
-    from{
+    0%{
       transform:translate(
         calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-x))),
         calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-y)))
       ) rotate(var(--collect-base-rot));
     }
-    to{
+    47.8%{
       transform:translate(
         calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-x)) + var(--collect-slide-x)),
         calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-y)))
-      ) rotate(calc(var(--collect-base-rot) + 1.4deg));
+      ) rotate(calc(var(--collect-base-rot) + 5deg));
+    }
+    95.6%{
+      transform:translate(
+        calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-x))),
+        calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-y)))
+      ) rotate(var(--collect-base-rot));
+    }
+    100%{
+      transform:translate(
+        calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-x))),
+        calc(-50% + (var(--stack-depth, 0) * var(--collect-offset-y)))
+      ) rotate(var(--collect-base-rot));
     }
   }
 
@@ -4945,8 +4957,6 @@ window.addEventListener('resize', handleViewportResize);
 
 const COLLECT_SHUFFLE_GATHER_MS = 450;
 const COLLECT_SHUFFLE_PAUSE_MS = 30;
-let collectShuffleStartedAt = 0;
-
 function renderPlayedMarkers(){
   const plays = state.plays || {};
   const started = !!state.game?.started;
@@ -4955,13 +4965,12 @@ function renderPlayedMarkers(){
   const isReveal2 = started && phase === 'reveal2';
   const isTable = started && phase === 'table';
 
-  if (isShuffle){
-    if (!collectShuffleStartedAt) collectShuffleStartedAt = Date.now();
-  } else {
-    collectShuffleStartedAt = 0;
-  }
+  const shuffleStartedAt = Number(state.game?.shuffleStartedAt || 0);
+  const collectShuffleElapsed = isShuffle
+    ? Math.max(0, Date.now() - shuffleStartedAt)
+    : 0;
   const collectShuffleSlideReady = isShuffle
-    && (Date.now() - collectShuffleStartedAt) >= (COLLECT_SHUFFLE_GATHER_MS + COLLECT_SHUFFLE_PAUSE_MS);
+    && collectShuffleElapsed >= (COLLECT_SHUFFLE_GATHER_MS + COLLECT_SHUFFLE_PAUSE_MS);
 
   for (const [uid, el] of ui.playedBackByUserId){
     if (!plays[uid] || isTable) {
