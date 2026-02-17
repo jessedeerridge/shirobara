@@ -3402,7 +3402,7 @@ function clearPower34ShuffleOverlay(){
 function startPower34ShuffleAnim(){
   if (!power34ShuffleOverlay || power34ShuffleActive) return;
   const cards = Array.from(myHandEl.querySelectorAll('.role-card'));
-  if (!cards.length) return;
+  if (cards.length <= 1) return;
 
   const handRect = myHandEl.getBoundingClientRect();
   const sampleRect = cards[0].getBoundingClientRect();
@@ -3427,11 +3427,9 @@ function startPower34ShuffleAnim(){
   });
 
   const moveToCenterMs = 220;
-  const cutDur = 170;
-  const cutX = 22;
-  const durOut = 220;
-  const durIn = 220;
-  const pause = 20;
+  const slideDur = 200;
+  const pause = 24;
+  const slideX = 42;
 
   const gatherState = overlays.map((overlay, idx) => {
     const dx = stackX - parseFloat(overlay.style.left);
@@ -3450,78 +3448,41 @@ function startPower34ShuffleAnim(){
 
   power34ShuffleActive = true;
 
-  const animateSwap = (front, back, count) => {
-    if (!power34ShuffleActive || !front || !back || count <= 0) return;
+  const topIdx = overlays.length - 1;
+  const secondIdx = overlays.length - 2;
 
-    front.classList.remove('movingIn');
-    void front.offsetWidth;
-    front.classList.add('movingOut');
+  const runSlide = (count) => {
+    if (!power34ShuffleActive || count <= 0) return;
 
-    power34ShuffleMotionTimer = setTimeout(() => {
-      front.classList.remove('movingOut', 'front');
-      front.classList.add('back');
-      back.classList.remove('back');
-      back.classList.add('front');
-
-      back.classList.remove('movingOut');
-      void back.offsetWidth;
-      back.classList.add('movingIn');
-
-      power34ShuffleMotionTimer = setTimeout(() => {
-        back.classList.remove('movingIn');
-        power34ShuffleMotionTimer = setTimeout(() => {
-          animateSwap(back, front, count - 1);
-        }, pause);
-      }, durIn);
-    }, durOut);
-  };
-
-  const startSwapPhase = () => {
-    const back = overlays[overlays.length - 2] || overlays[0];
-    const front = overlays[overlays.length - 1] || overlays[0];
-    if (!back || !front) return;
-
-    overlays.forEach((overlay, idx) => {
-      overlay.classList.remove('front', 'back', 'movingOut', 'movingIn');
-      if (idx === overlays.length - 1) overlay.classList.add('front');
-      else overlay.classList.add('back');
-    });
-
-    animateSwap(front, back, 3);
-  };
-
-  const animateCut = (dir, onDone) => {
     overlays.forEach((overlay, idx) => {
       const g = gatherState[idx];
-      const side = (idx % 2 === 0) ? -1 : 1;
-      const shift = side * dir;
-      const cutRot = g.rot + shift * 1.5;
-      overlay.style.transition = `transform ${cutDur}ms ease-in-out`;
-      overlay.style.transform = `translate(${g.dx + shift * cutX}px, ${g.dy}px) rotate(${cutRot}deg)`;
+      const isSlideCard = idx === topIdx || idx === secondIdx;
+      const extra = isSlideCard ? slideX : 0;
+      overlay.style.transition = `transform ${slideDur}ms ease-in-out`;
+      overlay.style.transform = `translate(${g.dx + extra}px, ${g.dy}px) rotate(${g.rot + (isSlideCard ? 1.4 : 0)}deg)`;
     });
 
     power34ShuffleMotionTimer = setTimeout(() => {
       overlays.forEach((overlay, idx) => {
         const g = gatherState[idx];
-        overlay.style.transition = `transform ${cutDur}ms ease-in-out`;
+        overlay.style.transition = `transform ${slideDur}ms ease-in-out`;
         overlay.style.transform = `translate(${g.dx}px, ${g.dy}px) rotate(${g.rot}deg)`;
       });
 
       power34ShuffleMotionTimer = setTimeout(() => {
-        onDone?.();
-      }, cutDur + 20);
-    }, cutDur + 10);
+        if (count > 1){
+          power34ShuffleMotionTimer = setTimeout(() => {
+            runSlide(count - 1);
+          }, pause);
+        }
+      }, slideDur + 10);
+    }, slideDur + 10);
   };
 
   power34ShuffleMotionTimer = setTimeout(() => {
-    animateCut(1, () => {
-      animateCut(-1, () => {
-        startSwapPhase();
-      });
-    });
+    runSlide(2);
   }, moveToCenterMs + 30);
 }
-
 function endPower34ShuffleAnim(){
   if (!power34ShuffleActive || !power34ShuffleOverlay) return;
   power34ShuffleCleanupTimer = setTimeout(() => {
@@ -3578,7 +3539,16 @@ async function executePower34Now(ctx){
   const roleCards0 = handSnap.val();
   let roleCards = Array.isArray(roleCards0) ? [...roleCards0] : [];
   if (!roleCards.length){
-    await update(p34Ref, { done:true, doneAt: Date.now(), result:'nohand' });
+    const forcedSeatNoHand = (state.players || []).find(p => p.id === ctx.forcedUid)?.seatIndex || 0;
+    await set(ref(db, `${base}/plays/${ctx.forcedUid}`), {
+      kind: 'pass',
+      seatIndex: forcedSeatNoHand,
+      playedAt: Date.now(),
+      forcedBy: 'power34',
+      forcedFrom: ctx.num,
+      reason: 'nohand'
+    });
+    await update(p34Ref, { done:true, doneAt: Date.now(), result:'auto_pass_nohand' });
     return;
   }
 
@@ -3590,16 +3560,19 @@ async function executePower34Now(ctx){
   }
 
   // animAt / forcedCard を確定（複数端末でも最初のものを尊重）
+  const shouldAnimate = roleCards.length > 1;
   await runTransaction(p34Ref, (cur) => {
     const c = cur || {};
     if (c.done) return c;
     if (!c.forcedCard) c.forcedCard = pick;
-    if (!c.animAt) c.animAt = Date.now();
+    if (shouldAnimate && !c.animAt) c.animAt = Date.now();
     return c;
   });
 
-  // 演出が見える最小待機
-  await new Promise(resolve => setTimeout(resolve, 760));
+  if (shouldAnimate){
+    // 演出が見える最小待機
+    await new Promise(resolve => setTimeout(resolve, 760));
+  }
 
   // ★削除はトランザクション（2回だけ安全リトライ）
   let removed = false;
@@ -3624,7 +3597,16 @@ async function executePower34Now(ctx){
     const a0 = hs.val();
     const a = Array.isArray(a0) ? [...a0] : [];
     if (!a.length){
-      await update(p34Ref, { done:true, doneAt: Date.now(), result:'nohand' });
+      const forcedSeatNoHand = (state.players || []).find(p => p.id === ctx.forcedUid)?.seatIndex || 0;
+      await set(ref(db, `${base}/plays/${ctx.forcedUid}`), {
+        kind: 'pass',
+        seatIndex: forcedSeatNoHand,
+        playedAt: Date.now(),
+        forcedBy: 'power34',
+        forcedFrom: ctx.num,
+        reason: 'nohand_retry'
+      });
+      await update(p34Ref, { done:true, doneAt: Date.now(), result:'auto_pass_nohand_retry' });
       return;
     }
     finalPick = a[Math.floor(Math.random() * a.length)];
