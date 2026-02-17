@@ -458,7 +458,7 @@
     ) rotate(var(--collect-base-rot));
   }
   .played-back.shuffling.slide-card{
-    animation: collectPower34Slide 460ms linear 2 both;
+    animation: collectPower34Slide 460ms ease-in-out 3 both;
   }
   .played-x.shuffling{
     /* シャッフル中はその場でフェードアウトして消えるだけ */
@@ -5078,9 +5078,11 @@ function renderPlayedMarkers(){
       marker.style.transform = `translate(-50%,-50%) scale(0.7)`;
     } else {
       const seatAngleDeg = getSeatAngleDeg(uid);
-      marker.style.transform = isShuffle
-        ? 'translate(-50%,-50%)'
-        : `translate(-50%,-50%) rotate(${seatAngleDeg}deg)`;
+      if (isShuffle){
+        marker.style.removeProperty('transform');
+      } else {
+        marker.style.transform = `translate(-50%,-50%) rotate(${seatAngleDeg}deg)`;
+      }
     }
   }
 }
@@ -5282,7 +5284,7 @@ function maybeHostAdvanceRound(){
   if (phase === 'shuffle'){
     const t = Number(state.game.shuffleStartedAt || 0);
     const now = Date.now();
-    const remain = (t ? (1000 - (now - t)) : 0);
+    const remain = (t ? (1500 - (now - t)) : 0);
 
     if (remain <= 0){
       hostStepShuffleToTable();
