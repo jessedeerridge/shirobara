@@ -3427,9 +3427,9 @@ function startPower34ShuffleAnim(){
   });
 
   const moveToCenterMs = 220;
-  const durOut = 220;
-  const durIn = 220;
-  const pause = 20;
+  const slideDur = 200;
+  const pause = 24;
+  const slideX = 42;
 
   const gatherState = overlays.map((overlay, idx) => {
     const dx = stackX - parseFloat(overlay.style.left);
@@ -3448,51 +3448,41 @@ function startPower34ShuffleAnim(){
 
   power34ShuffleActive = true;
 
-  const animateSwap = (front, back, count) => {
-    if (!power34ShuffleActive || !front || !back || count <= 0) return;
+  const topIdx = overlays.length - 1;
+  const secondIdx = overlays.length - 2;
 
-    front.classList.remove('movingIn');
-    void front.offsetWidth;
-    front.classList.add('movingOut');
-
-    power34ShuffleMotionTimer = setTimeout(() => {
-      front.classList.remove('movingOut', 'front');
-      front.classList.add('back');
-      back.classList.remove('back');
-      back.classList.add('front');
-
-      back.classList.remove('movingOut');
-      void back.offsetWidth;
-      back.classList.add('movingIn');
-
-      power34ShuffleMotionTimer = setTimeout(() => {
-        back.classList.remove('movingIn');
-        power34ShuffleMotionTimer = setTimeout(() => {
-          animateSwap(back, front, count - 1);
-        }, pause);
-      }, durIn);
-    }, durOut);
-  };
-
-  const startSwapPhase = () => {
-    const back = overlays[overlays.length - 2] || overlays[0];
-    const front = overlays[overlays.length - 1] || overlays[0];
-    if (!back || !front) return;
+  const runSlide = (count) => {
+    if (!power34ShuffleActive || count <= 0) return;
 
     overlays.forEach((overlay, idx) => {
-      overlay.classList.remove('front', 'back', 'movingOut', 'movingIn');
-      if (idx === overlays.length - 1) overlay.classList.add('front');
-      else overlay.classList.add('back');
+      const g = gatherState[idx];
+      const isSlideCard = idx === topIdx || idx === secondIdx;
+      const extra = isSlideCard ? slideX : 0;
+      overlay.style.transition = `transform ${slideDur}ms ease-in-out`;
+      overlay.style.transform = `translate(${g.dx + extra}px, ${g.dy}px) rotate(${g.rot + (isSlideCard ? 1.4 : 0)}deg)`;
     });
 
-    animateSwap(front, back, 2);
+    power34ShuffleMotionTimer = setTimeout(() => {
+      overlays.forEach((overlay, idx) => {
+        const g = gatherState[idx];
+        overlay.style.transition = `transform ${slideDur}ms ease-in-out`;
+        overlay.style.transform = `translate(${g.dx}px, ${g.dy}px) rotate(${g.rot}deg)`;
+      });
+
+      power34ShuffleMotionTimer = setTimeout(() => {
+        if (count > 1){
+          power34ShuffleMotionTimer = setTimeout(() => {
+            runSlide(count - 1);
+          }, pause);
+        }
+      }, slideDur + 10);
+    }, slideDur + 10);
   };
 
   power34ShuffleMotionTimer = setTimeout(() => {
-    startSwapPhase();
+    runSlide(2);
   }, moveToCenterMs + 30);
 }
-
 function endPower34ShuffleAnim(){
   if (!power34ShuffleActive || !power34ShuffleOverlay) return;
   power34ShuffleCleanupTimer = setTimeout(() => {
