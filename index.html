@@ -4193,6 +4193,7 @@ function renderMyHand(){
       (hasRoleCards || hasPlayedRoleThisRound) &&
       !isPassHiddenForUid(myId) &&
       !isPower10ChangeAllowed(myId) &&
+      !isPower7GivePendingForMe() &&
       !isPower5SelectionIncomplete() &&
       !isMyPlayLockedByPower5Waiting();
 
@@ -4247,6 +4248,7 @@ async function maybeAutoPassWhenNoHand(){
   const phase = state.game?.phase || 'collect';
   if (!started || phase !== 'collect') return;
   if (!isMyCollectTurn()) return;
+  if (isPower7GivePendingForMe()) return;
 
   if (state.plays?.[state.userId]) return;
 
