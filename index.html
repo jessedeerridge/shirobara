@@ -4449,16 +4449,20 @@ function renderMyHand(){
   if (started && handData && handData.numberCard && !shouldHidePowerPop) {
     const n = Number(handData.numberCard);
     const isPower10SelectingNow = (n === 10) && isMyPower10Selecting();
+    const power5Targets = Array.isArray(getPower5State()?.targets) ? getPower5State().targets : [];
+    const shouldShowPower5SelectGuide = (n === 5) && isMyPower5Selectable() && power5Targets.length === 0;
     powerWrapper.style.display = '';
     powerWrapper.classList.toggle('used', lostCrystal);
     powerCardEl.textContent = String(n);
-    powerTextEl.textContent = isPower10SelectingNow
-      ? 'カードを変えるプレイヤーの手札を選んでください。'
-      : (isMyPlayLockedByPower112Selection()
-          ? 'カードを出させるプレイヤーを選択してください。'
-          : ((n === 7 && isPower7GivePendingForMe())
-              ? '霊魂を与えたいプレイヤーへカードをドラッグしてください。'
-              : (POWER_TEXT[n] || '')));
+    powerTextEl.textContent = shouldShowPower5SelectGuide
+      ? '行動を結び付けたいプレイヤー2名を選んでください。（もう一度クリックで選択解除）'
+      : (isPower10SelectingNow
+          ? 'カードを変えるプレイヤーの手札を選んでください。'
+          : (isMyPlayLockedByPower112Selection()
+              ? 'カードを出させるプレイヤーを選択してください。'
+              : ((n === 7 && isPower7GivePendingForMe())
+                  ? '霊魂を与えたいプレイヤーへカードをドラッグしてください。'
+                  : (POWER_TEXT[n] || ''))));
     fitTextToBox(powerTextEl, 14, 9);
     if (powerPopExtraActions){
       powerPopExtraActions.classList.toggle('hidden', !isPower10SelectingNow);
