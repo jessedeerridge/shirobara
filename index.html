@@ -663,6 +663,19 @@
     user-select:none;
     touch-action:none;
   }
+  .role-card::after{
+    content:'';
+    position:absolute;
+    left:50%;
+    top:50%;
+    width:96px;
+    height:96px;
+    border-radius:50%;
+    border:2px dotted #111;
+    background:transparent;
+    transform:translate(-50%,-50%);
+    pointer-events:none;
+  }
   .role-card:active{cursor:grabbing;}
   .role-card .face{
     position:absolute; inset:0;
