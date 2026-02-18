@@ -3079,6 +3079,13 @@ function isMyPower5Selectable() {
     return true;
 }
 
+function isMyPower5TargetSelecting(){
+  if (!isMyPower5Selectable()) return false;
+  const p5 = getPower5State();
+  const targets = Array.isArray(p5?.targets) ? p5.targets : [];
+  return targets.length < 2;
+}
+
 
 function getPower10State(){
   const p10 = state.game?.power10 || null;
@@ -4454,11 +4461,13 @@ function renderMyHand(){
     powerCardEl.textContent = String(n);
     powerTextEl.textContent = isPower10SelectingNow
       ? 'カードを変えるプレイヤーの手札を選んでください。'
+      : ((n === 5 && isMyPower5TargetSelecting())
+          ? '行動を結び付けたいプレイヤー2名を選んでください。（もう一度クリックで選択解除）'
       : (isMyPlayLockedByPower112Selection()
           ? 'カードを出させるプレイヤーを選択してください。'
           : ((n === 7 && isPower7GivePendingForMe())
               ? '霊魂を与えたいプレイヤーへカードをドラッグしてください。'
-              : (POWER_TEXT[n] || '')));
+              : (POWER_TEXT[n] || ''))));
     fitTextToBox(powerTextEl, 14, 9);
     if (powerPopExtraActions){
       powerPopExtraActions.classList.toggle('hidden', !isPower10SelectingNow);
