@@ -2984,17 +2984,19 @@ function isMyPlayLockedByPower112Selection(){
   return isMyPower112Selectable();
 }
 
-// 他のプレイヤーの中で手札が1枚以上あるプレイヤーを数える関数
-function countOtherPlayersWithHands() {
-    let count = 0;
-    for (const p of (state.players || [])) {
-        if (p.id === state.userId) continue; // 自分は除外
-        if (hasLostCrystalChip(p.id)) continue; // 水晶チップを失っているプレイヤーは除外
-        if (getRoleCount(p.id) > 0) { // 手札が1枚以上
-            count++;
-        }
-    }
-    return count;
+// 効果5の発動条件：指定ロールカード所持者が2人以上いるか
+function countPower5CardHolders() {
+  const POWER5_HOLDER_CARDS = new Set(["白薔薇", "信者", "司教", "双刃", "巨刃", "暗刃", "大刃"]);
+  let count = 0;
+
+  for (const p of (state.players || [])) {
+    const uid = p?.id;
+    if (!uid) continue;
+    const cards = Array.isArray(state.hands?.[uid]?.roleCards) ? state.hands[uid].roleCards : [];
+    if (cards.some(card => POWER5_HOLDER_CARDS.has(card))) count++;
+  }
+
+  return count;
 }
 
 
@@ -3021,9 +3023,8 @@ function isPower5SelectionIncomplete() {
     const pd = state.game?.powerDisplay || null;
     if (!pd || Number(pd.number) !== 5) return false;
 
-    // ★変更箇所：他プレイヤーの中で手札が1枚以上あるプレイヤーが2人以上いない場合はfalseを返す
-    // これにより、選択が完了していなくても提出をブロックしない
-    if (countOtherPlayersWithHands() < 2) return false;
+    // 指定ロールカード所持者が2人未満のときは、効果5の選択完了待ちをしない
+    if (countPower5CardHolders() < 2) return false;
 
     const p5 = getPower5State();
     if (!p5 || p5.ownerId !== pd.ownerId) return true;
@@ -3058,8 +3059,8 @@ function isMyPower5Selectable() {
     if (!isMyPowerDisplay(5)) return false;
     if (isPower5SelectionLocked()) return false;
 
-    // ★変更箇所：他プレイヤーの中で手札が1枚以上あるプレイヤーが2人以上いない場合は選択不可
-    if (countOtherPlayersWithHands() < 2) return false;
+    // 指定ロールカード所持者が2人未満のときは選択不可
+    if (countPower5CardHolders() < 2) return false;
 
     return true;
 }
