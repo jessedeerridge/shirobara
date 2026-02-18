@@ -757,6 +757,17 @@
     display:flex;
     justify-content:center;
   }
+  .power-wrapper.used .power-card{
+    background:#b9b9b9;
+    color:#f3f3f3;
+    border-color:rgba(255,255,255,.4);
+    box-shadow:0 8px 18px rgba(0,0,0,.12);
+  }
+  .power-wrapper.used .power-pop{
+    background:rgba(175,175,175,.92);
+    color:#f8f8f8;
+    box-shadow:0 12px 26px rgba(0,0,0,.12);
+  }
   .power-block{
     display:flex;
     gap:10px;
@@ -3292,9 +3303,11 @@ function renderPower11Arrow(){
     const toTag = ui.tagByUserId.get(toUid);
     if (!fromTag || !toTag){
       arrowLayer.classList.add('hidden');
-      stopArrowLoop();
+      arrowRaf = requestAnimationFrame(tick);
       return;
     }
+
+    arrowLayer.classList.remove('hidden');
 
     const r1 = fromTag.getBoundingClientRect();
     const r2 = toTag.getBoundingClientRect();
@@ -3410,9 +3423,11 @@ function renderPower5Link(){
     const tagB = ui.tagByUserId.get(uidB);
     if (!tagA || !tagB){
       power5LinkLayer.classList.add('hidden');
-      stopPower5LinkLoop();
+      power5LinkRaf = requestAnimationFrame(tick);
       return;
     }
+
+    power5LinkLayer.classList.remove('hidden');
 
     const r1 = tagA.getBoundingClientRect();
     const r2 = tagB.getBoundingClientRect();
@@ -4366,7 +4381,7 @@ function renderMyHand(){
   if (started && handData) {
     const roleCards = Array.isArray(handData.roleCards) ? handData.roleCards : [];
     const hasRoleCards = roleCards.length > 0;
-    const hasPlayedRoleThisRound = state.plays?.[myId]?.kind === 'role';
+    const hasPlayedThisRound = !!state.plays?.[myId];
     roleCards.forEach((name, idx) => {
       const card = document.createElement('div');
       card.className = 'role-card';
@@ -4395,7 +4410,8 @@ function renderMyHand(){
 
     // ★出さない（✕）カード：効果8 / 効果1&12 で「非表示」になる
     const passShouldShow =
-      (hasRoleCards || hasPlayedRoleThisRound) &&
+      hasRoleCards &&
+      !hasPlayedThisRound &&
       !isPassHiddenForUid(myId) &&
       !isPower10ChangeAllowed(myId) &&
       !isPower7GivePendingForMe() &&
@@ -4427,10 +4443,11 @@ function renderMyHand(){
   const myRound = Number(state.game?.round || 0);
   const shouldHidePowerPop = (hidePowerPopRound != null && hidePowerPopRound === myRound);
 
-  if (started && handData && handData.numberCard && !shouldHidePowerPop && !lostCrystal) {
+  if (started && handData && handData.numberCard && !shouldHidePowerPop) {
     const n = Number(handData.numberCard);
     const isPower10SelectingNow = (n === 10) && isMyPower10Selecting();
     powerWrapper.style.display = '';
+    powerWrapper.classList.toggle('used', lostCrystal);
     powerCardEl.textContent = String(n);
     powerTextEl.textContent = isPower10SelectingNow
       ? 'カードを変えるプレイヤーの手札を選んでください。'
@@ -4445,6 +4462,7 @@ function renderMyHand(){
     }
   } else {
     powerWrapper.style.display = 'none';
+    powerWrapper.classList.remove('used');
     if (powerPopExtraActions) powerPopExtraActions.classList.add('hidden');
   }
 
