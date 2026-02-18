@@ -178,6 +178,20 @@
     z-index:2;
   }
   .player-tag.me{ background:#111;color:#fff;border-color:#111; }
+  .player-tag.round-play-tag-dim{
+    background:rgba(0,0,0,.72);
+    color:#fff;
+    border-color:rgba(0,0,0,.72);
+  }
+  .player-tag.round-play-tag-hatch{
+    background:repeating-linear-gradient(
+      135deg,
+      rgba(30,30,30,.42) 0 1px,
+      #fff 1px 11px
+    );
+    color:#000;
+    border-color:rgba(0,0,0,.72);
+  }
   .player-tag.power5-selected{
     outline:2px dashed rgba(220,38,38,.95);
     outline-offset:2px;
@@ -1026,10 +1040,30 @@
   .round-play-name{
     font-weight:800;
     white-space:nowrap;
+    cursor:pointer;
+    user-select:none;
   }
   .round-play-name.round-play-name-highlight{
     background:#000;
     color:#fff;
+  }
+  .round-play-row-dim td{
+    background:rgba(0,0,0,.72);
+    color:#fff;
+  }
+  .round-play-row-hatch{
+    background:repeating-linear-gradient(
+      135deg,
+      rgba(10,10,10,.9) 0 1px,
+      rgba(245,245,245,.15) 1px 14px
+    );
+  }
+  .round-play-row-hatch td{
+    background:transparent;
+    color:#fff;
+  }
+  .round-play-row-hatch .round-play-name{
+    color:#000;
   }
   .round-play-cell{
     width:28px;
@@ -1946,6 +1980,7 @@ const coinPool = document.getElementById('coinPool');
 const coinPoolInner = document.getElementById('coinPoolInner');
 let roundPlayWrapper = null;
 let roundPlayTable = null;
+const roundPlayRowModes = {};
 
 const discardTable = document.getElementById('discardTable');
 const slotRose  = document.getElementById('slotRose');
@@ -4376,11 +4411,35 @@ function renderRoundPlayTable(){
     cell.appendChild(stack);
   };
 
+  const applyRoundPlayRowMode = (row, mode) => {
+    row.classList.remove('round-play-row-dim', 'round-play-row-hatch');
+    if (mode === 1) row.classList.add('round-play-row-dim');
+    if (mode === 2) row.classList.add('round-play-row-hatch');
+  };
+
+  const applyRoundPlayModeToPlayerTag = (uid, mode) => {
+    const tag = ui.tagByUserId.get(uid);
+    if (!tag) return;
+    tag.classList.remove('round-play-tag-dim', 'round-play-tag-hatch');
+    if (mode === 1) tag.classList.add('round-play-tag-dim');
+    if (mode === 2) tag.classList.add('round-play-tag-hatch');
+  };
+
   players.forEach(player => {
     const row = document.createElement('tr');
     const nameCell = document.createElement('td');
     nameCell.className = 'round-play-name';
     nameCell.textContent = player.name || '名無し';
+    nameCell.title = '押すたびに表示を切り替えます';
+    const currentMode = Number(roundPlayRowModes[player.id] || 0);
+    applyRoundPlayRowMode(row, currentMode);
+    applyRoundPlayModeToPlayerTag(player.id, currentMode);
+    nameCell.addEventListener('click', () => {
+      const nextMode = (Number(roundPlayRowModes[player.id] || 0) + 1) % 3;
+      roundPlayRowModes[player.id] = nextMode;
+      applyRoundPlayRowMode(row, nextMode);
+      applyRoundPlayModeToPlayerTag(player.id, nextMode);
+    });
     row.appendChild(nameCell);
 
     for (let r = 1; r <= roundCount; r += 1){
@@ -4949,6 +5008,9 @@ function renderPlayerCircle(players){
 
     const tag = document.createElement('div');
     tag.className = 'player-tag' + (p.id === state.userId ? ' me' : '');
+    const mode = Number(roundPlayRowModes[p.id] || 0);
+    if (mode === 1) tag.classList.add('round-play-tag-dim');
+    if (mode === 2) tag.classList.add('round-play-tag-hatch');
     if (x > 50) tag.classList.add('right-half');
     tag.textContent = p.name;
 
