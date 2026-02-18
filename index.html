@@ -641,12 +641,32 @@
   .my-hand-wrapper{margin-top:24px;text-align:center;}
   .my-hand-title{display:none;}
   .my-hand{
-    display:flex;
+    display:inline-flex;
     justify-content:center;
     gap:8px;
     margin-top:6px;
     min-height:120px;
     align-items:flex-start;
+    position:relative;
+    --my-hand-circle-size: 0px;
+  }
+  .my-hand.group-circle::before{
+    content:'';
+    position:absolute;
+    left:50%;
+    top:50%;
+    width:var(--my-hand-circle-size);
+    height:var(--my-hand-circle-size);
+    border-radius:50%;
+    border:2px dotted #111;
+    background:transparent;
+    transform:translate(-50%,-50%);
+    pointer-events:none;
+    z-index:0;
+  }
+  .my-hand > *{
+    position:relative;
+    z-index:1;
   }
 
   /* 正体カード（60x90） */
@@ -662,19 +682,6 @@
     cursor:grab;
     user-select:none;
     touch-action:none;
-  }
-  .role-card::after{
-    content:'';
-    position:absolute;
-    left:50%;
-    top:50%;
-    width:96px;
-    height:96px;
-    border-radius:50%;
-    border:2px dotted #111;
-    background:transparent;
-    transform:translate(-50%,-50%);
-    pointer-events:none;
   }
   .role-card:active{cursor:grabbing;}
   .role-card .face{
@@ -4098,6 +4105,35 @@ function applyPlayableAnimToMyHand(){
   });
 }
 
+function updateMyHandGroupCircle(){
+  const cards = myHandEl.querySelectorAll('.role-card, .pass-card');
+  if (!cards.length){
+    myHandEl.classList.remove('group-circle');
+    myHandEl.style.setProperty('--my-hand-circle-size', '0px');
+    return;
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  cards.forEach((card) => {
+    const rect = card.getBoundingClientRect();
+    minX = Math.min(minX, rect.left);
+    minY = Math.min(minY, rect.top);
+    maxX = Math.max(maxX, rect.right);
+    maxY = Math.max(maxY, rect.bottom);
+  });
+
+  const width = Math.max(0, maxX - minX);
+  const height = Math.max(0, maxY - minY);
+  const size = Math.ceil(Math.max(width, height) + 28);
+
+  myHandEl.classList.add('group-circle');
+  myHandEl.style.setProperty('--my-hand-circle-size', `${size}px`);
+}
+
 /* ★変更：コインown後のバナーは「公開（table/reveal2）まで」表示し続ける */
 function updatePowerBanner(){
   const started = !!state.game?.started;
@@ -4403,6 +4439,7 @@ function renderMyHand(){
   }
 
   applyPlayableAnimToMyHand();
+  requestAnimationFrame(updateMyHandGroupCircle);
 }
 
 let autoPassNoHandInFlight = false;
@@ -5229,6 +5266,7 @@ function handleViewportResize(){
   });
 }
 window.addEventListener('resize', handleViewportResize);
+window.addEventListener('resize', () => { requestAnimationFrame(updateMyHandGroupCircle); });
 
 
 
