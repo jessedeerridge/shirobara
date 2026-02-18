@@ -1261,7 +1261,8 @@
     align-items:center;
     justify-content:center;
     background:rgba(0,0,0,.18);
-    z-index:610;
+    /* ヘルプタブ（z-index:230）より背面にする */
+    z-index:220;
     pointer-events:none;
   }
   .peek-overlay.hidden{display:none;}
@@ -1304,7 +1305,8 @@
   .arrow-layer{
     position:fixed;
     inset:0;
-    z-index:590;
+    /* ヘルプタブ（z-index:230）より背面にする */
+    z-index:220;
     pointer-events:none;
   }
   .arrow-layer.hidden{display:none;}
@@ -1313,7 +1315,8 @@
   .power5-link-layer{
     position:fixed;
     inset:0;
-    z-index:588;
+    /* ヘルプタブ（z-index:230）より背面にする */
+    z-index:220;
     pointer-events:none;
   }
   .power5-link-layer.hidden{display:none;}
