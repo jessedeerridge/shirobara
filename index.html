@@ -1041,20 +1041,22 @@
     box-shadow:0 6px 12px rgba(0,0,0,.18);
   }
   .round-play-card-stack{
-    position:relative;
-    width:30px;
-    height:30px;
+    width:40px;
+    min-height:23px;
     margin:0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:2px;
   }
-  .round-play-card-stack .round-play-card-back{
-    position:absolute;
-    left:50%;
-    top:50%;
-    margin:0;
-    transform:translate(-50%, -50%);
+  .round-play-card-stack.count-3{
+    gap:0;
   }
-  .round-play-card-stack .round-play-card-back:nth-child(n+2){
-    transform:translate(calc(-50% + 4px), calc(-50% + 4px));
+  .round-play-card-stack.count-3 .round-play-card-back{
+    margin-left:-4px;
+  }
+  .round-play-card-stack.count-3 .round-play-card-back:first-child{
+    margin-left:0;
   }
   .round-play-pass{
     font-size:22px;
@@ -4357,11 +4359,14 @@ function renderRoundPlayTable(){
   const renderCardCell = (cell, cards) => {
     if (!Array.isArray(cards) || cards.length === 0) return;
     const stack = document.createElement('div');
+    const shownCards = cards.slice(0, 3);
     stack.className = 'round-play-card-stack';
-    cards.forEach(cardName => {
+    stack.classList.add(`count-${shownCards.length}`);
+    shownCards.forEach((cardName, idx) => {
       const back = document.createElement('div');
       back.className = 'round-play-card-back';
       back.style.backgroundImage = `url('${ASSET.roleFront[cardName] || ASSET.roleBack}')`;
+      back.style.zIndex = String(idx + 1);
       stack.appendChild(back);
     });
     cell.appendChild(stack);
