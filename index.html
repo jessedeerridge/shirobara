@@ -6211,6 +6211,7 @@ function renderCoins(){
   const xPct = (c && c.xPct != null) ? c.xPct : 0.5;
   const yPct = (c && c.yPct != null) ? c.yPct : 0.5;
   placeCoinByPct(el, xPct, yPct);
+  el.style.opacity = (coinDrag && coinDrag.source === 'pool' && coinDrag.coinId === COIN_ID) ? '0' : '';
 }
 
 function renderOwnedCoinsBadges(){
@@ -6239,6 +6240,7 @@ function renderOwnedCoinsBadges(){
     const dragLocked = !canCurrentUserDragOwnedCrystal(c.ownerId);
     dot.classList.toggle('locked', locked);
     dot.classList.toggle('no-drag', !locked && dragLocked);
+    dot.style.opacity = (coinDrag && coinDrag.source === 'owned' && coinDrag.coinId === coinId) ? '0' : '';
 
     dot.addEventListener('pointerdown', (e) => startDragCoinFromOwned(e, coinId, c.ownerId));
 
@@ -6281,7 +6283,8 @@ function startDragCoinFromPool(e){
     raf:null,
     lastClientX:e.clientX,
     lastClientY:e.clientY,
-    prevState
+    prevState,
+    coinId: COIN_ID
   };
 
 
@@ -6412,7 +6415,8 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
     raf:null,
     lastClientX:e.clientX,
     lastClientY:e.clientY,
-    prevState
+    prevState,
+    coinId
   };
 
   update(ref(db, `rooms/${state.roomCode}/coins/${coinId}`), {
