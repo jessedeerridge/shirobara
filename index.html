@@ -1040,6 +1040,22 @@
     background-position:center;
     box-shadow:0 6px 12px rgba(0,0,0,.18);
   }
+  .round-play-card-stack{
+    position:relative;
+    width:30px;
+    height:30px;
+    margin:0 auto;
+  }
+  .round-play-card-stack .round-play-card-back{
+    position:absolute;
+    left:50%;
+    top:50%;
+    margin:0;
+    transform:translate(-50%, -50%);
+  }
+  .round-play-card-stack .round-play-card-back:nth-child(n+2){
+    transform:translate(calc(-50% + 4px), calc(-50% + 4px));
+  }
   .round-play-pass{
     font-size:22px;
     font-weight:900;
@@ -4332,6 +4348,24 @@ function renderRoundPlayTable(){
 
   const tbody = document.createElement('tbody');
   const roundData = state.roundPlays || {};
+  const summaryRows = [
+    { label: '白薔薇/司教', key: 'roseBishop' },
+    { label: '双刃', key: 'doubleBlade' },
+    { label: '暗刃/巨刃', key: 'darkGiantBlade' }
+  ];
+
+  const renderCardCell = (cell, cards) => {
+    if (!Array.isArray(cards) || cards.length === 0) return;
+    const stack = document.createElement('div');
+    stack.className = 'round-play-card-stack';
+    cards.forEach(cardName => {
+      const back = document.createElement('div');
+      back.className = 'round-play-card-back';
+      back.style.backgroundImage = `url('${ASSET.roleFront[cardName] || ASSET.roleBack}')`;
+      stack.appendChild(back);
+    });
+    cell.appendChild(stack);
+  };
 
   players.forEach(player => {
     const row = document.createElement('tr');
@@ -4361,6 +4395,24 @@ function renderRoundPlayTable(){
         mark.textContent = '✕';
         cell.appendChild(mark);
       }
+      row.appendChild(cell);
+    }
+    tbody.appendChild(row);
+  });
+
+  summaryRows.forEach(summary => {
+    const row = document.createElement('tr');
+    const nameCell = document.createElement('td');
+    nameCell.className = 'round-play-name';
+    nameCell.textContent = summary.label;
+    row.appendChild(nameCell);
+
+    for (let r = 1; r <= roundCount; r += 1){
+      const cell = document.createElement('td');
+      cell.className = 'round-play-cell';
+      const roundKey = String(r);
+      const cards = roundData?.[roundKey]?.summary?.[summary.key] || [];
+      renderCardCell(cell, cards);
       row.appendChild(cell);
     }
     tbody.appendChild(row);
@@ -5839,6 +5891,11 @@ btnNextRound.addEventListener('click', async () => {
   }
 
   const roundPlays = {};
+  const summary = {
+    roseBishop: [],
+    doubleBlade: [],
+    darkGiantBlade: []
+  };
   for (const it of list){
     if (!it || !it.uid) continue;
     if (it.kind === 'pass'){
@@ -5852,8 +5909,17 @@ btnNextRound.addEventListener('click', async () => {
         entry.revealed = true;
       }
       roundPlays[it.uid] = entry;
+
+      if (it.card === '白薔薇' || it.card === '司教'){
+        summary.roseBishop.push(it.card);
+      } else if (it.card === '双刃'){
+        summary.doubleBlade.push(it.card);
+      } else if (it.card === '暗刃' || it.card === '巨刃'){
+        summary.darkGiantBlade.push(it.card);
+      }
     }
   }
+  roundPlays.summary = summary;
 
   const dRef = ref(db, `${base}/discard`);
   await runTransaction(dRef, (cur) => {
