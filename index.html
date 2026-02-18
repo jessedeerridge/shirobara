@@ -1913,6 +1913,8 @@ const copyLinkBtn = document.getElementById('copyLinkBtn');
 const hostSelectingPop = document.getElementById('hostSelectingPop');
 const coinWarningPop = document.getElementById('coinWarningPop');
 const crystalGuidePop = document.getElementById('crystalGuidePop');
+const DEFAULT_CRYSTAL_GUIDE_TEXT = 'クリスタルを使用するプレイヤーを選んでください。';
+const POWER5_CRYSTAL_GUIDE_TEXT = '行動を結び付けたいプレイヤー2名を選んでください。（もう一度クリックで選択解除）';
 const crystalSelectingTopPop = document.getElementById('crystalSelectingTopPop');
 
 const seatPop = document.getElementById('seatPop');
@@ -4313,6 +4315,20 @@ function updateCrystalGuidePop(){
   }
   const ownerId = state.coins?.[COIN_ID]?.ownerId ?? null;
   const shouldShow = canCurrentUserDragOwnedCrystal(ownerId);
+
+  const pd = state.game?.powerDisplay || null;
+  const p5 = getPower5State();
+  const isPower5OwnerSelecting =
+    shouldShow &&
+    !!pd &&
+    Number(pd.number) === 5 &&
+    pd.ownerId === state.userId &&
+    (!p5 || !Array.isArray(p5.targets) || p5.targets.length < 2);
+
+  crystalGuidePop.textContent = isPower5OwnerSelecting
+    ? POWER5_CRYSTAL_GUIDE_TEXT
+    : DEFAULT_CRYSTAL_GUIDE_TEXT;
+
   crystalGuidePop.classList.toggle('hidden', !shouldShow);
 }
 
