@@ -651,6 +651,7 @@
     --my-hand-circle-size: 0px;
   }
   .my-hand.group-circle::before{
+    display:none;
     content:'';
     position:absolute;
     left:50%;
@@ -663,6 +664,9 @@
     transform:translate(-50%,-50%);
     pointer-events:none;
     z-index:0;
+  }
+  .my-hand.group-circle.effect-selected::before{
+    display:block;
   }
   .my-hand > *{
     position:relative;
@@ -4107,6 +4111,11 @@ function applyPlayableAnimToMyHand(){
 
 function updateMyHandGroupCircle(){
   const cards = myHandEl.querySelectorAll('.role-card, .pass-card');
+  const selectedTargets = getEffectSelectedHandcircleTargets();
+  const isMyHandEffectSelected = selectedTargets.has(state.userId);
+
+  myHandEl.classList.toggle('effect-selected', isMyHandEffectSelected);
+
   if (!cards.length){
     myHandEl.classList.remove('group-circle');
     myHandEl.style.setProperty('--my-hand-circle-size', '0px');
