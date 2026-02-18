@@ -6211,6 +6211,7 @@ function renderCoins(){
   const xPct = (c && c.xPct != null) ? c.xPct : 0.5;
   const yPct = (c && c.yPct != null) ? c.yPct : 0.5;
   placeCoinByPct(el, xPct, yPct);
+  el.style.opacity = (coinDrag && coinDrag.source === 'pool' && coinDrag.coinId === COIN_ID) ? '0' : '';
 }
 
 function renderOwnedCoinsBadges(){
@@ -6239,6 +6240,7 @@ function renderOwnedCoinsBadges(){
     const dragLocked = !canCurrentUserDragOwnedCrystal(c.ownerId);
     dot.classList.toggle('locked', locked);
     dot.classList.toggle('no-drag', !locked && dragLocked);
+    dot.style.opacity = (coinDrag && coinDrag.source === 'owned' && coinDrag.coinId === coinId) ? '0' : '';
 
     dot.addEventListener('pointerdown', (e) => startDragCoinFromOwned(e, coinId, c.ownerId));
 
@@ -6265,7 +6267,7 @@ function startDragCoinFromPool(e){
   ghost.classList.add('drag-ghost');
   mainEl.appendChild(ghost);
 
-  realEl.style.opacity = '0.25';
+  realEl.style.opacity = '0';
 
   const prevState = {
     ownerId: c?.ownerId ?? null,
@@ -6281,7 +6283,8 @@ function startDragCoinFromPool(e){
     raf:null,
     lastClientX:e.clientX,
     lastClientY:e.clientY,
-    prevState
+    prevState,
+    coinId: COIN_ID
   };
 
 
@@ -6325,7 +6328,6 @@ function startDragCoinFromPool(e){
     const prev = coinDrag?.prevState || null;
     coinDrag.ghost.remove();
     coinDrag = null;
-    realEl.style.opacity = '';
 
     const poolRect = coinPoolInner.getBoundingClientRect();
     const inPool = rectContainsPoint(poolRect, ev.clientX, ev.clientY);
@@ -6361,6 +6363,7 @@ function startDragCoinFromPool(e){
         lockBy: null,
         updatedAt: Date.now()
       });
+      realEl.style.opacity = '';
       await maybeClearCoinOwnerChangeLock(null);
       return;
     }
@@ -6369,6 +6372,7 @@ function startDragCoinFromPool(e){
       lockBy: null,
       updatedAt: Date.now()
     });
+    realEl.style.opacity = '';
   };
 
   window.addEventListener('pointermove', onMove);
@@ -6411,7 +6415,8 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
     raf:null,
     lastClientX:e.clientX,
     lastClientY:e.clientY,
-    prevState
+    prevState,
+    coinId
   };
 
   update(ref(db, `rooms/${state.roomCode}/coins/${coinId}`), {
@@ -6436,7 +6441,6 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
     const prev = coinDrag?.prevState || null;
     coinDrag.ghost.remove();
     coinDrag = null;
-    srcEl.style.opacity = ''
 
     const hitUid = getOwncoinHitUserId(ev.clientX, ev.clientY);
 
@@ -6469,6 +6473,7 @@ function startDragCoinFromOwned(e, coinId, currentOwnerId){
       lockBy: null,
       updatedAt: Date.now()
     });
+    srcEl.style.opacity = '';
   };
 
 
@@ -6554,12 +6559,14 @@ function startDragSpirit(e){
 
     spiritDrag.ghost.remove();
     spiritDrag = null;
-    spiritCard.style.visibility = '';
-    spiritCard.classList.toggle('idle-anim', isPower7GivePendingForMe());
-    updateSpiritDropTargets();
 
     const hitUid = getHandcircleHitUserId(ev.clientX, ev.clientY);
-    if (!hitUid) return;
+    if (!hitUid) {
+      spiritCard.style.visibility = '';
+      spiritCard.classList.toggle('idle-anim', isPower7GivePendingForMe());
+      updateSpiritDropTargets();
+      return;
+    }
 
     await executePower7Give(hitUid);
   };
