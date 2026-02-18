@@ -1027,6 +1027,10 @@
     font-weight:800;
     white-space:nowrap;
   }
+  .round-play-name.round-play-name-highlight{
+    background:#000;
+    color:#fff;
+  }
   .round-play-cell{
     width:28px;
     height:28px;
@@ -4351,9 +4355,9 @@ function renderRoundPlayTable(){
   const tbody = document.createElement('tbody');
   const roundData = state.roundPlays || {};
   const summaryRows = [
-    { label: '白薔薇/司教', key: 'roseBishop' },
-    { label: '双刃', key: 'doubleBlade' },
-    { label: '暗刃/巨刃', key: 'darkGiantBlade' }
+    { label: '白薔薇/司教', key: 'roseBishop', highlight: true },
+    { label: '双刃', key: 'doubleBlade', highlight: true },
+    { label: '暗刃/巨刃', key: 'darkGiantBlade', highlight: true }
   ];
 
   const renderCardCell = (cell, cards) => {
@@ -4409,6 +4413,7 @@ function renderRoundPlayTable(){
     const row = document.createElement('tr');
     const nameCell = document.createElement('td');
     nameCell.className = 'round-play-name';
+    if (summary.highlight) nameCell.classList.add('round-play-name-highlight');
     nameCell.textContent = summary.label;
     row.appendChild(nameCell);
 
